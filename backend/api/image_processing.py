@@ -562,111 +562,116 @@ def process_image(img_data, operation, params=None):
     # Convert base64 to image array
     img = read_image_from_base64(img_data)
     
-    # Apply the requested operation
-    if operation == "grayscale":
-        processed = to_grayscale(img)
-        # Convert back to 3 channel if original was 3 channel
-        if len(img.shape) > 2:
-            processed = np.stack([processed] * 3, axis=-1)
-    elif operation == "binary":
-        threshold = int(params.get("threshold", 127)) if params else 127
-        processed = to_binary(img, threshold)
-    elif operation == "rotate":
-        angle = float(params.get("angle", 90)) if params else 90
-        processed = rotate_image(img, angle)
-    elif operation == "crop":
-        if params:
-            x = int(params.get("x", 0))
-            y = int(params.get("y", 0))
-            width = int(params.get("width", img.shape[1]//2))
-            height = int(params.get("height", img.shape[0]//2))
-        else:
-            x, y = 0, 0
-            width, height = img.shape[1]//2, img.shape[0]//2
-        processed = crop_image(img, x, y, width, height)
-    elif operation == "zoom":
-        factor = float(params.get("factor", 1.5)) if params else 1.5
-        processed = zoom_image(img, factor)
-    elif operation == "color_space":
-        conv_type = params.get("type", "rgb_to_grayscale") if params else "rgb_to_grayscale"
-        processed = convert_color_space(img, conv_type)
-    elif operation == "histogram":
-        processed = histogram_stretching(img)
-    elif operation == "add_images":
-        # For add_images, we need a second image
-        img2_data = params.get("img2_data") if params else None
-        if img2_data:
-            img2 = read_image_from_base64(img2_data)
-            processed = add_images(img, img2)
-        else:
-            processed = img
-    elif operation == "divide_images":
-        # For divide_images, we need a second image
-        img2_data = params.get("img2_data") if params else None
-        if img2_data:
-            img2 = read_image_from_base64(img2_data)
-            processed = divide_images(img, img2)
-        else:
-            processed = img
-    elif operation == "contrast":
-        factor = float(params.get("factor", 1.5)) if params else 1.5
-        processed = enhance_contrast(img, factor)
-    elif operation == "convolution_mean":
-        kernel_size = int(params.get("size", 3)) if params else 3
-        processed = mean_filter(img, kernel_size)
-    elif operation == "threshold":
-        threshold = int(params.get("threshold", 127)) if params else 127
-        processed = thresholding(img, threshold)
-    elif operation == "edge_prewitt":
-        processed = prewitt_edge_detection(img)
-        # Convert back to 3 channel if original was 3 channel
-        if len(img.shape) > 2:
-            processed = np.stack([processed] * 3, axis=-1)
-    elif operation == "salt_pepper":
-        amount = float(params.get("amount", 0.05)) if params else 0.05
-        processed = add_salt_pepper_noise(img, amount)
-    elif operation == "filter_mean":
-        size = int(params.get("size", 3)) if params else 3
-        processed = mean_filter(img, size)
-    elif operation == "filter_median":
-        size = int(params.get("size", 3)) if params else 3
-        processed = median_filter(img, size)
-    elif operation == "unsharp":
-        strength = float(params.get("strength", 1.0)) if params else 1.0
-        processed = unsharp_mask(img, strength)
-    elif operation == "morphology_erosion":
-        kernel_size = int(params.get("kernel_size", 3)) if params else 3
-        processed = morphology_erosion(img, kernel_size)
-        # Convert back to 3 channel if original was 3 channel
-        if len(img.shape) > 2:
-            processed = np.stack([processed] * 3, axis=-1)
-    elif operation == "morphology_dilation":
-        kernel_size = int(params.get("kernel_size", 3)) if params else 3
-        processed = morphology_dilation(img, kernel_size)
-        # Convert back to 3 channel if original was 3 channel
-        if len(img.shape) > 2:
-            processed = np.stack([processed] * 3, axis=-1)
-    elif operation == "morphology_opening":
-        kernel_size = int(params.get("kernel_size", 3)) if params else 3
-        processed = morphology_opening(img, kernel_size)
-        # Convert back to 3 channel if original was 3 channel
-        if len(img.shape) > 2:
-            processed = np.stack([processed] * 3, axis=-1)
-    elif operation == "morphology_closing":
-        kernel_size = int(params.get("kernel_size", 3)) if params else 3
-        processed = morphology_closing(img, kernel_size)
-        # Convert back to 3 channel if original was 3 channel
-        if len(img.shape) > 2:
-            processed = np.stack([processed] * 3, axis=-1)
-    else:
-        # Default: return the original image
-        processed = img
+    # Operasyon tek bir string ya da bir string listesi/array olabilir
+    operations = operation if isinstance(operation, list) else [operation]
+    params_list = params if isinstance(params, list) else [params] * len(operations)
+    
+    # Her bir işlemi sırayla uygula
+    processed = img
+    histogram = None
+    
+    for idx, op in enumerate(operations):
+        # Mevcut işlem için parametreleri al
+        current_params = params_list[idx] if idx < len(params_list) else None
+        
+        # İşlemi uygula
+        if op == "grayscale":
+            processed = to_grayscale(processed)
+            # Convert back to 3 channel if original was 3 channel
+            if len(img.shape) > 2:
+                processed = np.stack([processed] * 3, axis=-1)
+        elif op == "binary":
+            threshold = int(current_params.get("threshold", 127)) if current_params else 127
+            processed = to_binary(processed, threshold)
+        elif op == "rotate":
+            angle = float(current_params.get("angle", 90)) if current_params else 90
+            processed = rotate_image(processed, angle)
+        elif op == "crop":
+            if current_params:
+                x = int(current_params.get("x", 0))
+                y = int(current_params.get("y", 0))
+                width = int(current_params.get("width", processed.shape[1]//2))
+                height = int(current_params.get("height", processed.shape[0]//2))
+            else:
+                x, y = 0, 0
+                width, height = processed.shape[1]//2, processed.shape[0]//2
+            processed = crop_image(processed, x, y, width, height)
+        elif op == "zoom":
+            factor = float(current_params.get("factor", 1.5)) if current_params else 1.5
+            processed = zoom_image(processed, factor)
+        elif op == "color_space":
+            conv_type = current_params.get("type", "rgb_to_grayscale") if current_params else "rgb_to_grayscale"
+            processed = convert_color_space(processed, conv_type)
+        elif op == "histogram":
+            processed = histogram_stretching(processed)
+            # Son işlemse histogram hesapla
+            if idx == len(operations) - 1:
+                histogram = calculate_histogram(processed).tolist()
+        elif op == "add_images":
+            # For add_images, we need a second image
+            img2_data = current_params.get("img2_data") if current_params else None
+            if img2_data:
+                img2 = read_image_from_base64(img2_data)
+                processed = add_images(processed, img2)
+        elif op == "divide_images":
+            # For divide_images, we need a second image
+            img2_data = current_params.get("img2_data") if current_params else None
+            if img2_data:
+                img2 = read_image_from_base64(img2_data)
+                processed = divide_images(processed, img2)
+        elif op == "contrast":
+            factor = float(current_params.get("factor", 1.5)) if current_params else 1.5
+            processed = enhance_contrast(processed, factor)
+        elif op == "convolution_mean":
+            kernel_size = int(current_params.get("size", 3)) if current_params else 3
+            processed = mean_filter(processed, kernel_size)
+        elif op == "threshold":
+            threshold = int(current_params.get("threshold", 127)) if current_params else 127
+            processed = thresholding(processed, threshold)
+        elif op == "edge_prewitt":
+            processed = prewitt_edge_detection(processed)
+            # Convert back to 3 channel if original was 3 channel
+            if len(img.shape) > 2:
+                processed = np.stack([processed] * 3, axis=-1)
+        elif op == "salt_pepper":
+            amount = float(current_params.get("amount", 0.05)) if current_params else 0.05
+            processed = add_salt_pepper_noise(processed, amount)
+        elif op == "filter_mean":
+            size = int(current_params.get("size", 3)) if current_params else 3
+            processed = mean_filter(processed, size)
+        elif op == "filter_median":
+            size = int(current_params.get("size", 3)) if current_params else 3
+            processed = median_filter(processed, size)
+        elif op == "unsharp":
+            strength = float(current_params.get("strength", 1.0)) if current_params else 1.0
+            processed = unsharp_mask(processed, strength)
+        elif op == "morphology_erosion":
+            kernel_size = int(current_params.get("kernel_size", 3)) if current_params else 3
+            processed = morphology_erosion(processed, kernel_size)
+            # Convert back to 3 channel if original was 3 channel
+            if len(img.shape) > 2:
+                processed = np.stack([processed] * 3, axis=-1)
+        elif op == "morphology_dilation":
+            kernel_size = int(current_params.get("kernel_size", 3)) if current_params else 3
+            processed = morphology_dilation(processed, kernel_size)
+            # Convert back to 3 channel if original was 3 channel
+            if len(img.shape) > 2:
+                processed = np.stack([processed] * 3, axis=-1)
+        elif op == "morphology_opening":
+            kernel_size = int(current_params.get("kernel_size", 3)) if current_params else 3
+            processed = morphology_opening(processed, kernel_size)
+            # Convert back to 3 channel if original was 3 channel
+            if len(img.shape) > 2:
+                processed = np.stack([processed] * 3, axis=-1)
+        elif op == "morphology_closing":
+            kernel_size = int(current_params.get("kernel_size", 3)) if current_params else 3
+            processed = morphology_closing(processed, kernel_size)
+            # Convert back to 3 channel if original was 3 channel
+            if len(img.shape) > 2:
+                processed = np.stack([processed] * 3, axis=-1)
     
     # Convert back to base64
     result_base64 = image_to_base64(processed)
-    
-    # If we generated a histogram, calculate it
-    histogram = calculate_histogram(processed).tolist() if operation == "histogram" else None
     
     return {
         "processed_image": result_base64,

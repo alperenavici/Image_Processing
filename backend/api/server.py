@@ -30,15 +30,31 @@ def process():
         
         # Get base64 image data, operation name, and parameters
         image_data = data['image'].split(',')[1] if ',' in data['image'] else data['image']
-        operation = data['operation']
+        operation = data['operation']  # Bu artık bir string veya string listesi olabilir
         params = data.get('params', {})
         
+        # Birden fazla işlemi kontrol et
+        if isinstance(operation, list):
+            # params bir liste değilse, her işlem için aynı parametreleri kullanır
+            if not isinstance(params, list):
+                params = [params] * len(operation)
+            elif len(params) < len(operation):
+                # Eksik parametreleri None ile doldur
+                params.extend([None] * (len(operation) - len(params)))
+                
         # If we have a second image for operations that need two images
         if 'image2' in data:
             image2_data = data['image2'].split(',')[1] if ',' in data['image2'] else data['image2']
-            if params is None:
-                params = {}
-            params['img2_data'] = image2_data
+            if isinstance(operation, list):
+                # Her işlem için ikinci görüntüyü ekle
+                for i in range(len(operation)):
+                    if params[i] is None:
+                        params[i] = {}
+                    params[i]['img2_data'] = image2_data
+            else:
+                if params is None:
+                    params = {}
+                params['img2_data'] = image2_data
         
         # Process the image
         result = process_image(image_data, operation, params)
