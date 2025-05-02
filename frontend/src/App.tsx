@@ -475,6 +475,14 @@ const App: React.FC = () => {
                 <div className="image-item">
                   <h3>Orijinal Görüntü</h3>
                   <img src={imageData.original} alt="Original" className="image" />
+                  <div className="image-actions">
+                    <button
+                      className="btn btn-change"
+                      onClick={() => triggerFileInput()}
+                    >
+                      Görüntüyü Değiştir
+                    </button>
+                  </div>
                 </div>
 
                 {imageData.processed && (
@@ -533,9 +541,9 @@ const App: React.FC = () => {
                   <div
                     key={key}
                     className={`operation-item ${(multiMode && selectedOperations.some(op => op.operation === key)) ||
-                        (!multiMode && selectedOperation === key)
-                        ? 'selected'
-                        : ''
+                      (!multiMode && selectedOperation === key)
+                      ? 'selected'
+                      : ''
                       }`}
                     onClick={() => handleOperationSelect(key)}
                   >
@@ -574,7 +582,7 @@ const App: React.FC = () => {
       {loading && <Loading />}
 
       <footer>
-        <p>© 2023 Görüntü İşleme Uygulaması</p>
+        <p>© 2025 Görüntü İşleme Uygulaması</p>
       </footer>
     </div>
   );

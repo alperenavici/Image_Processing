@@ -307,6 +307,7 @@ body {
   0% {
     transform: rotate(0deg);
   }
+
   100% {
     transform: rotate(360deg);
   }
@@ -369,17 +370,17 @@ body {
   .main-content {
     flex-direction: column;
   }
-  
+
   .sidebar {
     width: 100%;
     min-width: 100%;
   }
-  
+
   .image-comparison {
     flex-direction: column;
     gap: 15px;
   }
-  
+
   .image-box {
     width: 100%;
   }
@@ -610,7 +611,18 @@ footer {
 }
 
 .btn-download:hover {
-  background-color: #3d8b40;
+  background-color: #2e7d32;
+}
+
+.btn-change {
+  background-color: #ff9800;
+  margin-top: 10px;
+  font-size: 0.9rem;
+  padding: 8px 16px;
+}
+
+.btn-change:hover {
+  background-color: #f57c00;
 }
 
 /* Process section */
@@ -651,9 +663,9 @@ footer {
   .container {
     flex-direction: column;
   }
-  
+
   .image-container,
   .operations-container {
     max-width: 100%;
   }
-} 
+}
