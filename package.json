@@ -1,0 +1,13 @@
+{
+    "name": "image-processing-app",
+    "version": "1.0.0",
+    "description": "Image Processing Web Application",
+    "scripts": {
+        "dev": "cd frontend && npm run start",
+        "build": "cd frontend && npm run build",
+        "vercel-build": "cd frontend && npm install && npm run build"
+    },
+    "engines": {
+        "node": ">=14.0.0"
+    }
+}

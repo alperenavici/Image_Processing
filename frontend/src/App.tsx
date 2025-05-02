@@ -3,7 +3,9 @@ import { Histogram } from './Histogram';
 import { Operations, OperationConfig } from './Operations';
 
 // Define API base URL
-const API_URL = 'http://localhost:5000/api';
+const API_URL = process.env.NODE_ENV === 'production'
+  ? '/api'  // Production (Vercel) - relatif yol 
+  : 'http://localhost:3000/api';  // Lokal geliştirme
 
 // Define interface for the image data
 interface ImageData {
@@ -27,47 +29,47 @@ const App: React.FC = () => {
   // State for images
   const [imageData, setImageData] = useState<ImageData | null>(null);
   const [secondImage, setSecondImage] = useState<string | null>(null);
-  
+
   // State for operations
   const [selectedOperation, setSelectedOperation] = useState<string | null>(null);
   const [params, setParams] = useState<Params>({});
-  
+
   // State for multi-operations
   const [multiMode, setMultiMode] = useState<boolean>(false);
   const [selectedOperations, setSelectedOperations] = useState<SelectedOp[]>([]);
-  
+
   // State for UI
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [processStatus, setProcessStatus] = useState<{ type: string; message: string } | null>(null);
-  
+
   // Refs for file inputs
   const fileInputRef = useRef<HTMLInputElement>(null);
   const secondFileInputRef = useRef<HTMLInputElement>(null);
-  
+
   // Function to handle file upload
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, isSecondImage: boolean = false) => {
     try {
       if (!e.target.files || e.target.files.length === 0) return;
-      
+
       const file = e.target.files[0];
       const formData = new FormData();
       formData.append('file', file);
-      
+
       setLoading(true);
       setError(null);
-      
+
       const response = await fetch(`${API_URL}/upload`, {
         method: 'POST',
         body: formData,
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to upload image');
       }
-      
+
       const data = await response.json();
-      
+
       if (isSecondImage) {
         setSecondImage(data.base64);
       } else {
@@ -86,7 +88,7 @@ const App: React.FC = () => {
       e.target.value = '';
     }
   };
-  
+
   // Function to trigger file input click
   const triggerFileInput = (isSecondImage: boolean = false) => {
     if (isSecondImage) {
@@ -95,34 +97,34 @@ const App: React.FC = () => {
       fileInputRef.current?.click();
     }
   };
-  
+
   // Function to process image with single operation
   const processImage = async () => {
     if (!imageData?.original || (!selectedOperation && selectedOperations.length === 0)) return;
-    
+
     try {
       setLoading(true);
       setError(null);
-      
+
       // Prepare request data
       let requestData: any;
-      
+
       if (multiMode) {
         // Multiple operations mode
         const operations = selectedOperations.map(op => op.operation);
         const opParams = selectedOperations.map(op => op.params);
-        
+
         requestData = {
           image: imageData.original,
           operation: operations,
           params: opParams
         };
-        
+
         // Check if any operation requires second image
-        const needsSecondImage = selectedOperations.some(op => 
+        const needsSecondImage = selectedOperations.some(op =>
           Operations[op.operation]?.requiresSecondImage
         );
-        
+
         if (needsSecondImage && secondImage) {
           requestData.image2 = secondImage;
         }
@@ -133,13 +135,13 @@ const App: React.FC = () => {
           operation: selectedOperation,
           params: params
         };
-        
+
         // Add second image if needed
         if (Operations[selectedOperation!]?.requiresSecondImage && secondImage) {
           requestData.image2 = secondImage;
         }
       }
-      
+
       const response = await fetch(`${API_URL}/process`, {
         method: 'POST',
         headers: {
@@ -147,20 +149,20 @@ const App: React.FC = () => {
         },
         body: JSON.stringify(requestData),
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to process image');
       }
-      
+
       const data = await response.json();
-      
+
       // Update image data with processed image
       setImageData(prev => ({
         ...prev!,
         processed: `data:image/jpeg;base64,${data.processed_image}`,
         histogram: data.histogram
       }));
-      
+
       setProcessStatus({ type: 'success', message: 'Görüntü başarıyla işlendi!' });
     } catch (err) {
       setError((err as Error).message || 'İşlem sırasında bir hata oluştu');
@@ -169,7 +171,7 @@ const App: React.FC = () => {
       setLoading(false);
     }
   };
-  
+
   // Function to handle operation selection
   const handleOperationSelect = (operation: string) => {
     if (multiMode) {
@@ -177,32 +179,32 @@ const App: React.FC = () => {
       if (selectedOperations.some(op => op.operation === operation)) {
         return;
       }
-      
+
       // Add to selected operations list
       const newOperation: SelectedOp = {
         operation,
         params: Operations[operation]?.defaultParams || {}
       };
-      
+
       setSelectedOperations([...selectedOperations, newOperation]);
     } else {
       // Single operation mode
       setSelectedOperation(operation);
-      
+
       // Reset params for the new operation
       if (Operations[operation]?.defaultParams) {
         setParams(Operations[operation].defaultParams);
       } else {
         setParams({});
       }
-      
+
       // If operation doesn't require second image, reset second image
       if (!Operations[operation]?.requiresSecondImage) {
         setSecondImage(null);
       }
     }
   };
-  
+
   // Function to handle parameter change in single operation mode
   const handleParamChange = (paramName: string, value: any) => {
     setParams(prev => ({
@@ -210,7 +212,7 @@ const App: React.FC = () => {
       [paramName]: value
     }));
   };
-  
+
   // Function to handle parameter change in multi operation mode
   const handleMultiParamChange = (index: number, paramName: string, value: any) => {
     setSelectedOperations(prev => {
@@ -225,7 +227,7 @@ const App: React.FC = () => {
       return newOps;
     });
   };
-  
+
   // Function to remove operation from multi-operation list
   const removeOperation = (index: number) => {
     setSelectedOperations(prev => {
@@ -234,11 +236,11 @@ const App: React.FC = () => {
       return newOps;
     });
   };
-  
+
   // Function to toggle between single and multi operation modes
   const toggleMode = () => {
     setMultiMode(!multiMode);
-    
+
     if (!multiMode) {
       // Switching to multi mode
       if (selectedOperation) {
@@ -258,7 +260,7 @@ const App: React.FC = () => {
       setParams({});
     }
   };
-  
+
   // Function to render parameter inputs based on selected operation
   const renderParamInputs = () => {
     if (multiMode) {
@@ -274,15 +276,15 @@ const App: React.FC = () => {
                 <li key={index} className="selected-operation-item">
                   <div className="selected-operation-header">
                     <span>{Operations[op.operation]?.name || op.operation}</span>
-                    <button 
-                      className="btn-remove" 
+                    <button
+                      className="btn-remove"
                       onClick={() => removeOperation(index)}
                       title="Bu işlemi kaldır"
                     >
                       &times;
                     </button>
                   </div>
-                  
+
                   {Operations[op.operation]?.params && (
                     <div className="operation-params">
                       {Operations[op.operation].params.map(param => (
@@ -300,8 +302,8 @@ const App: React.FC = () => {
                                 step={param.step}
                                 value={op.params[param.name] || param.defaultValue}
                                 onChange={(e) => handleMultiParamChange(
-                                  index, 
-                                  param.name, 
+                                  index,
+                                  param.name,
                                   parseFloat(e.target.value)
                                 )}
                               />
@@ -313,7 +315,7 @@ const App: React.FC = () => {
                               value={op.params[param.name] || param.defaultValue}
                               onChange={(e) => handleMultiParamChange(
                                 index,
-                                param.name, 
+                                param.name,
                                 e.target.value
                               )}
                             >
@@ -329,8 +331,8 @@ const App: React.FC = () => {
                               id={`${op.operation}-${param.name}-${index}`}
                               value={op.params[param.name] || param.defaultValue}
                               onChange={(e) => {
-                                const value = param.type === 'number' 
-                                  ? parseFloat(e.target.value) 
+                                const value = param.type === 'number'
+                                  ? parseFloat(e.target.value)
                                   : e.target.value;
                                 handleMultiParamChange(index, param.name, value);
                               }}
@@ -344,7 +346,7 @@ const App: React.FC = () => {
               ))}
             </ul>
           )}
-          
+
           {/* Second image section for multi-operations if needed */}
           {selectedOperations.some(op => Operations[op.operation]?.requiresSecondImage) && (
             <div className="second-image-upload">
@@ -368,7 +370,7 @@ const App: React.FC = () => {
       if (!selectedOperation || !Operations[selectedOperation]?.params) {
         return null;
       }
-      
+
       return (
         <div className="params-container">
           <h3>Parametreler</h3>
@@ -406,8 +408,8 @@ const App: React.FC = () => {
                   id={param.name}
                   value={params[param.name] || param.defaultValue}
                   onChange={(e) => {
-                    const value = param.type === 'number' 
-                      ? parseFloat(e.target.value) 
+                    const value = param.type === 'number'
+                      ? parseFloat(e.target.value)
                       : e.target.value;
                     handleParamChange(param.name, value);
                   }}
@@ -415,7 +417,7 @@ const App: React.FC = () => {
               )}
             </div>
           ))}
-          
+
           {Operations[selectedOperation]?.requiresSecondImage && (
             <div className="second-image-upload">
               <h3>İkinci Görüntü</h3>
@@ -442,7 +444,7 @@ const App: React.FC = () => {
       );
     }
   };
-  
+
   // Loading componentini iyileştirelim
   // Loading gösterirken görünecek bileşen:
   const Loading = () => (
@@ -451,18 +453,18 @@ const App: React.FC = () => {
       <p>İşlem yapılıyor...</p>
     </div>
   );
-  
+
   return (
     <div className="app">
       <header>
         <h1>Görüntü İşleme Uygulaması</h1>
       </header>
-      
+
       <main>
         <div className="container">
           <div className="image-container">
             <h2>Görüntü</h2>
-            
+
             {!imageData?.original ? (
               <div className="upload-area" onClick={() => triggerFileInput()}>
                 <p>Görüntüyü yüklemek için tıklayın veya sürükleyin</p>
@@ -474,14 +476,14 @@ const App: React.FC = () => {
                   <h3>Orijinal Görüntü</h3>
                   <img src={imageData.original} alt="Original" className="image" />
                 </div>
-                
+
                 {imageData.processed && (
                   <div className="image-item">
                     <h3>İşlenmiş Görüntü</h3>
                     <img src={imageData.processed} alt="Processed" className="image" />
                     <div className="image-actions">
-                      <a 
-                        href={imageData.processed} 
+                      <a
+                        href={imageData.processed}
                         download="processed_image.jpg"
                         className="btn btn-download"
                       >
@@ -492,7 +494,7 @@ const App: React.FC = () => {
                 )}
               </div>
             )}
-            
+
             <input
               type="file"
               accept="image/*"
@@ -500,7 +502,7 @@ const App: React.FC = () => {
               onChange={(e) => handleFileUpload(e)}
               style={{ display: 'none' }}
             />
-            
+
             {/* Display histogram if available */}
             {imageData?.histogram && (
               <div className="histogram-container">
@@ -509,33 +511,32 @@ const App: React.FC = () => {
               </div>
             )}
           </div>
-          
+
           <div className="operations-container">
             <div className="operations-section">
               <div className="operations-header">
                 <h2>İşlemler</h2>
                 <div className="mode-toggle">
                   <label>
-                    <input 
-                      type="checkbox" 
-                      checked={multiMode} 
-                      onChange={toggleMode} 
+                    <input
+                      type="checkbox"
+                      checked={multiMode}
+                      onChange={toggleMode}
                     />
                     <span>Çoklu İşlem Modu {multiMode ? "Açık" : "Kapalı"}</span>
                   </label>
                 </div>
               </div>
-              
+
               <div className="operations-list">
                 {Object.entries(Operations).map(([key, operation]) => (
                   <div
                     key={key}
-                    className={`operation-item ${
-                      (multiMode && selectedOperations.some(op => op.operation === key)) ||
-                      (!multiMode && selectedOperation === key)
+                    className={`operation-item ${(multiMode && selectedOperations.some(op => op.operation === key)) ||
+                        (!multiMode && selectedOperation === key)
                         ? 'selected'
                         : ''
-                    }`}
+                      }`}
                     onClick={() => handleOperationSelect(key)}
                   >
                     <h3>{operation.name}</h3>
@@ -544,10 +545,10 @@ const App: React.FC = () => {
                 ))}
               </div>
             </div>
-            
+
             <div className="parameters-section">
               {renderParamInputs()}
-              
+
               {imageData?.original && (
                 <div className="process-section">
                   <button
@@ -557,7 +558,7 @@ const App: React.FC = () => {
                   >
                     {loading ? 'İşleniyor...' : 'Görüntüyü İşle'}
                   </button>
-                  
+
                   {processStatus && (
                     <div className={`status-message ${processStatus.type}`}>
                       {processStatus.message}
@@ -569,9 +570,9 @@ const App: React.FC = () => {
           </div>
         </div>
       </main>
-      
+
       {loading && <Loading />}
-      
+
       <footer>
         <p>© 2023 Görüntü İşleme Uygulaması</p>
       </footer>

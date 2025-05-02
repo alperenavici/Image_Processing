@@ -6,7 +6,8 @@ export default defineConfig({
   plugins: [react()],
   root: path.resolve(__dirname, 'src'),
   build: {
-    outDir: '../dist',
+    outDir: '../static',
+    emptyOutDir: true
   },
   server: {
     port: 1234,
