@@ -3,6 +3,7 @@ import base64
 from io import BytesIO
 import json
 import PIL.Image
+from scipy import ndimage
 
 def read_image_from_base64(base64_string):
     """Decode a base64 image into a numpy array"""
@@ -85,24 +86,30 @@ def rotate_image(img, angle):
     center_old = (width // 2, height // 2)
     center_new = (new_width // 2, new_height // 2)
     
-    # Rotate pixel by pixel (inefficient but works without libraries)
-    for y in range(new_height):
-        for x in range(new_width):
-            # Translate to origin
-            x_centered = x - center_new[0]
-            y_centered = y - center_new[1]
-            
-            # Rotate point
-            x_rotated = int(x_centered * np.cos(angle_rad) + y_centered * np.sin(angle_rad))
-            y_rotated = int(-x_centered * np.sin(angle_rad) + y_centered * np.cos(angle_rad))
-            
-            # Translate back
-            x_orig = x_rotated + center_old[0]
-            y_orig = y_rotated + center_old[1]
-            
-            # Check if the original pixel is within bounds
-            if 0 <= x_orig < width and 0 <= y_orig < height:
-                rotated[y, x] = img[y_orig, x_orig]
+    # Create meshgrid for all coordinates in new image
+    y_coords, x_coords = np.meshgrid(np.arange(new_height), np.arange(new_width), indexing='ij')
+    
+    # Translate to origin
+    x_centered = x_coords - center_new[0]
+    y_centered = y_coords - center_new[1]
+    
+    # Rotate points (vectorized)
+    x_rotated = np.round(x_centered * np.cos(angle_rad) + y_centered * np.sin(angle_rad)).astype(int)
+    y_rotated = np.round(-x_centered * np.sin(angle_rad) + y_centered * np.cos(angle_rad)).astype(int)
+    
+    # Translate back
+    x_orig = x_rotated + center_old[0]
+    y_orig = y_rotated + center_old[1]
+    
+    # Create mask for valid coordinates
+    valid_mask = (0 <= x_orig) & (x_orig < width) & (0 <= y_orig) & (y_orig < height)
+    
+    if channels == 1:
+        rotated[valid_mask] = img[y_orig[valid_mask], x_orig[valid_mask]]
+    else:
+        # Handle multiple channels
+        for c in range(channels):
+            rotated[valid_mask, c] = img[y_orig[valid_mask], x_orig[valid_mask], c]
     
     return rotated
 
@@ -120,7 +127,7 @@ def crop_image(img, x_start, y_start, width, height):
     return img[y_start:y_start+height, x_start:x_start+width].copy()
 
 def zoom_image(img, scale_factor):
-    """Zoom in/out image by scale factor"""
+    """Zoom in/out image by scale factor using vectorized operations"""
     if scale_factor <= 0:
         return img
         
@@ -131,17 +138,20 @@ def zoom_image(img, scale_factor):
     new_height = int(height * scale_factor)
     new_width = int(width * scale_factor)
     
+    # Create a meshgrid for the coordinates in the zoomed image
+    y_coords, x_coords = np.meshgrid(np.arange(new_height), np.arange(new_width), indexing='ij')
+    
+    # Calculate corresponding coordinates in original image
+    orig_y = np.clip((y_coords / scale_factor).astype(int), 0, height - 1)
+    orig_x = np.clip((x_coords / scale_factor).astype(int), 0, width - 1)
+    
     if channels == 1:
         zoomed = np.zeros((new_height, new_width), dtype=np.uint8)
+        zoomed = img[orig_y, orig_x]
     else:
         zoomed = np.zeros((new_height, new_width, channels), dtype=np.uint8)
-    
-    # Simple nearest neighbor interpolation
-    for y in range(new_height):
-        for x in range(new_width):
-            orig_y = min(height-1, int(y / scale_factor))
-            orig_x = min(width-1, int(x / scale_factor))
-            zoomed[y, x] = img[orig_y, orig_x]
+        for c in range(channels):
+            zoomed[:, :, c] = img[orig_y, orig_x, c]
     
     return zoomed
 
@@ -336,42 +346,21 @@ def enhance_contrast(img, factor=1.5):
     return enhanced
 
 def convolution(img, kernel):
-    """Apply convolution with the given kernel"""
-    if len(img.shape) > 2:
-        # For color images, apply convolution to each channel
+    """Apply convolution with a kernel"""
+    from scipy import ndimage
+    
+    # Process each channel separately for color images
+    if len(img.shape) == 3:
         result = np.zeros_like(img)
-        for i in range(img.shape[2]):
-            result[:,:,i] = convolution(img[:,:,i], kernel)
-        return result
-    
-    # Get kernel dimensions
-    k_height, k_width = kernel.shape
-    
-    # Calculate padding
-    pad_h = k_height // 2
-    pad_w = k_width // 2
-    
-    # Create padded image
-    padded = np.pad(img, ((pad_h, pad_h), (pad_w, pad_w)), mode='reflect')
-    
-    # Initialize output image
-    output = np.zeros_like(img)
-    
-    # Apply convolution
-    for y in range(img.shape[0]):
-        for x in range(img.shape[1]):
-            # Extract region of interest
-            roi = padded[y:y+k_height, x:x+k_width]
-            # Apply kernel
-            output[y, x] = np.sum(roi * kernel)
-    
-    # Ensure values are in valid range
-    return np.clip(output, 0, 255).astype(np.uint8)
+        for c in range(img.shape[2]):
+            result[:,:,c] = ndimage.convolve(img[:,:,c], kernel, mode='constant', cval=0.0)
+        return np.clip(result, 0, 255).astype(np.uint8)
+    else:
+        return np.clip(ndimage.convolve(img, kernel, mode='constant', cval=0.0), 0, 255).astype(np.uint8)
 
 def mean_filter(img, size=3):
-    """Apply a mean filter for smoothing"""
-    # Create a mean filter kernel
-    kernel = np.ones((size, size)) / (size * size)
+    """Apply mean filter (box blur)"""
+    kernel = np.ones((size, size), dtype=np.float32) / (size * size)
     return convolution(img, kernel)
 
 def thresholding(img, threshold=127):
@@ -400,15 +389,17 @@ def prewitt_edge_detection(img):
                          [0, 0, 0],
                          [1, 1, 1]])
     
-    # Apply convolution
-    edges_x = convolution(img, kernel_x)
-    edges_y = convolution(img, kernel_y)
+    # Apply filters using scipy for efficiency
+    edges_x = ndimage.convolve(img.astype(float), kernel_x)
+    edges_y = ndimage.convolve(img.astype(float), kernel_y)
     
-    # Combine the results
-    edges = np.sqrt(edges_x.astype(np.float32)**2 + edges_y.astype(np.float32)**2)
-    edges = np.clip(edges, 0, 255).astype(np.uint8)
+    # Combine the results - gradient magnitude
+    edges = np.sqrt(edges_x**2 + edges_y**2)
     
-    return edges
+    # Normalize to 0-255 range
+    edges = edges * (255.0 / edges.max()) if edges.max() > 0 else edges
+    
+    return edges.astype(np.uint8)
 
 def add_salt_pepper_noise(img, amount=0.05):
     """Add salt and pepper noise to an image"""
@@ -433,32 +424,17 @@ def add_salt_pepper_noise(img, amount=0.05):
     return output
 
 def median_filter(img, size=3):
-    """Apply a median filter to remove noise"""
-    if len(img.shape) > 2:
-        # For color images, apply median filter to each channel
+    """Apply median filter to remove noise"""
+    from scipy import ndimage
+    
+    # Process each channel separately
+    if len(img.shape) == 3:
         result = np.zeros_like(img)
-        for i in range(img.shape[2]):
-            result[:,:,i] = median_filter(img[:,:,i], size)
+        for c in range(img.shape[2]):
+            result[:,:,c] = ndimage.median_filter(img[:,:,c], size=size)
         return result
-    
-    # Calculate padding
-    pad = size // 2
-    
-    # Create padded image
-    padded = np.pad(img, ((pad, pad), (pad, pad)), mode='reflect')
-    
-    # Initialize output image
-    output = np.zeros_like(img)
-    
-    # Apply median filter
-    for y in range(img.shape[0]):
-        for x in range(img.shape[1]):
-            # Extract window
-            window = padded[y:y+size, x:x+size]
-            # Find median
-            output[y, x] = np.median(window)
-    
-    return output.astype(np.uint8)
+    else:
+        return ndimage.median_filter(img, size=size)
 
 def unsharp_mask(img, strength=1.0):
     """Apply unsharp mask filter to sharpen the image"""
@@ -485,27 +461,11 @@ def morphology_erosion(img, kernel_size=3):
     # Create a kernel
     kernel = np.ones((kernel_size, kernel_size), dtype=np.uint8)
     
-    # Get kernel dimensions
-    k_height, k_width = kernel.shape
+    # Apply binary erosion using scipy
+    eroded = ndimage.binary_erosion(binary > 0, structure=kernel)
     
-    # Calculate padding
-    pad_h = k_height // 2
-    pad_w = k_width // 2
-    
-    # Create padded image
-    padded = np.pad(binary, ((pad_h, pad_h), (pad_w, pad_w)), mode='constant', constant_values=0)
-    
-    # Initialize output image
-    output = np.zeros_like(binary)
-    
-    # Apply erosion
-    for y in range(binary.shape[0]):
-        for x in range(binary.shape[1]):
-            # Extract window
-            window = padded[y:y+k_height, x:x+k_width]
-            # If all pixels under the kernel are 255, then set output pixel to 255
-            if np.all(window[kernel == 1] == 255):
-                output[y, x] = 255
+    # Convert boolean result back to uint8
+    output = np.where(eroded, 255, 0).astype(np.uint8)
     
     return output
 
@@ -521,41 +481,53 @@ def morphology_dilation(img, kernel_size=3):
     # Create a kernel
     kernel = np.ones((kernel_size, kernel_size), dtype=np.uint8)
     
-    # Get kernel dimensions
-    k_height, k_width = kernel.shape
+    # Apply binary dilation using scipy
+    dilated = ndimage.binary_dilation(binary > 0, structure=kernel)
     
-    # Calculate padding
-    pad_h = k_height // 2
-    pad_w = k_width // 2
-    
-    # Create padded image
-    padded = np.pad(binary, ((pad_h, pad_h), (pad_w, pad_w)), mode='constant', constant_values=0)
-    
-    # Initialize output image
-    output = np.zeros_like(binary)
-    
-    # Apply dilation
-    for y in range(binary.shape[0]):
-        for x in range(binary.shape[1]):
-            # Extract window
-            window = padded[y:y+k_height, x:x+k_width]
-            # If any pixel under the kernel is 255, then set output pixel to 255
-            if np.any(window[kernel == 1] == 255):
-                output[y, x] = 255
+    # Convert boolean result back to uint8
+    output = np.where(dilated, 255, 0).astype(np.uint8)
     
     return output
 
 def morphology_opening(img, kernel_size=3):
     """Apply morphological opening (erosion followed by dilation)"""
-    eroded = morphology_erosion(img, kernel_size)
-    opened = morphology_dilation(eroded, kernel_size)
-    return opened
+    # Ensure the image is binary
+    if len(img.shape) > 2:
+        # Convert to grayscale first
+        img = to_grayscale(img)
+    
+    binary = thresholding(img)
+    
+    # Create a kernel
+    kernel = np.ones((kernel_size, kernel_size), dtype=np.uint8)
+    
+    # Apply binary opening using scipy
+    opened = ndimage.binary_opening(binary > 0, structure=kernel)
+    
+    # Convert boolean result back to uint8
+    output = np.where(opened, 255, 0).astype(np.uint8)
+    
+    return output
 
 def morphology_closing(img, kernel_size=3):
     """Apply morphological closing (dilation followed by erosion)"""
-    dilated = morphology_dilation(img, kernel_size)
-    closed = morphology_erosion(dilated, kernel_size)
-    return closed
+    # Ensure the image is binary
+    if len(img.shape) > 2:
+        # Convert to grayscale first
+        img = to_grayscale(img)
+    
+    binary = thresholding(img)
+    
+    # Create a kernel
+    kernel = np.ones((kernel_size, kernel_size), dtype=np.uint8)
+    
+    # Apply binary closing using scipy
+    closed = ndimage.binary_closing(binary > 0, structure=kernel)
+    
+    # Convert boolean result back to uint8
+    output = np.where(closed, 255, 0).astype(np.uint8)
+    
+    return output
 
 def process_image(img_data, operation, params=None):
     """Process the image based on the specified operation"""
