@@ -6,6 +6,8 @@ import base64
 from werkzeug.utils import secure_filename
 import sys
 import tempfile
+import time
+from datetime import datetime
 
 # Import our image processing module
 from image_processing import process_image
@@ -19,6 +21,10 @@ if not os.path.exists(UPLOAD_FOLDER):
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload size
+
+# Operation history will be stored here (in-memory storage)
+# In a production environment, you might want to use a database
+operations_history = []
 
 @app.route('/api/process', methods=['POST'])
 def process():
@@ -72,14 +78,49 @@ def process():
             print(f"Operation {operation} has img2_data: {'img2_data' in params}")
         
         # Process the image
+        start_time = time.time()
         result = process_image(image_data, operation, params)
+        processing_time = time.time() - start_time
+        
+        # Record the operation in history
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        history_entry = {
+            'timestamp': timestamp,
+            'operation': operation,
+            'processing_time': round(processing_time, 2),
+            'success': True
+        }
+        operations_history.append(history_entry)
+        
+        # Limit history size
+        if len(operations_history) > 50:  # Keep last 50 operations
+            operations_history.pop(0)
+            
+        # Include the history in the response
+        result['history'] = operations_history
         
         return jsonify(result)
     
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+        
+        # Record failed operation
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        history_entry = {
+            'timestamp': timestamp,
+            'operation': data.get('operation', 'unknown'),
+            'error': str(e),
+            'success': False
+        }
+        operations_history.append(history_entry)
+        
+        return jsonify({'error': str(e), 'history': operations_history}), 500
+
+@app.route('/api/history', methods=['GET'])
+def get_history():
+    """Endpoint to get operation history"""
+    return jsonify({'history': operations_history})
 
 @app.route('/api/upload', methods=['POST'])
 def upload_file():
@@ -101,11 +142,22 @@ def upload_file():
         
         base64_data = base64.b64encode(file_data).decode('utf-8')
         
+        # Record upload in history
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        history_entry = {
+            'timestamp': timestamp,
+            'operation': 'upload',
+            'filename': filename,
+            'success': True
+        }
+        operations_history.append(history_entry)
+        
         return jsonify({
             'success': True,
             'filename': filename,
             'filepath': f'/static/uploads/{filename}',
-            'base64': f'data:image/jpeg;base64,{base64_data}'
+            'base64': f'data:image/jpeg;base64,{base64_data}',
+            'history': operations_history
         })
 
 if __name__ == '__main__':

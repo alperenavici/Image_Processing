@@ -128,7 +128,10 @@ def crop_image(img, x_start, y_start, width, height):
 
 def zoom_image(img, scale_factor):
     """Zoom in/out image by scale factor using vectorized operations"""
+    print(f"Zoom operation called with scale_factor: {scale_factor}, type: {type(scale_factor)}")
+    
     if scale_factor <= 0:
+        print("Invalid scale factor (≤ 0), returning original image")
         return img
         
     height, width = img.shape[0], img.shape[1]
@@ -138,21 +141,43 @@ def zoom_image(img, scale_factor):
     new_height = int(height * scale_factor)
     new_width = int(width * scale_factor)
     
-    # Create a meshgrid for the coordinates in the zoomed image
-    y_coords, x_coords = np.meshgrid(np.arange(new_height), np.arange(new_width), indexing='ij')
+    print(f"Original image shape: {img.shape}, New dimensions: {new_width}x{new_height}")
     
-    # Calculate corresponding coordinates in original image
-    orig_y = np.clip((y_coords / scale_factor).astype(int), 0, height - 1)
-    orig_x = np.clip((x_coords / scale_factor).astype(int), 0, width - 1)
-    
+    # PIL kullanarak yeniden boyutlandırma
+    # NumPy array'i PIL Image'e dönüştür
     if channels == 1:
-        zoomed = np.zeros((new_height, new_width), dtype=np.uint8)
-        zoomed = img[orig_y, orig_x]
+        pil_img = PIL.Image.fromarray(img)
     else:
-        zoomed = np.zeros((new_height, new_width, channels), dtype=np.uint8)
-        for c in range(channels):
-            zoomed[:, :, c] = img[orig_y, orig_x, c]
+        pil_img = PIL.Image.fromarray(img)
     
+    # PIL 9.0+ için Resampling.LANCZOS, eski sürümler için LANCZOS kullan
+    try:
+        # Yeni PIL sürümü için
+        resampling_method = PIL.Image.Resampling.LANCZOS
+    except AttributeError:
+        # Eski PIL sürümleri için
+        resampling_method = PIL.Image.LANCZOS
+    
+    # Yeniden boyutlandır
+    try:
+        pil_resized = pil_img.resize((new_width, new_height), resampling_method)
+    except Exception as e:
+        print(f"Error during PIL resize: {e}, trying with BICUBIC")
+        # Alternatif yöntem
+        try:
+            if hasattr(PIL.Image, 'Resampling'):
+                pil_resized = pil_img.resize((new_width, new_height), PIL.Image.Resampling.BICUBIC)
+            else:
+                pil_resized = pil_img.resize((new_width, new_height), PIL.Image.BICUBIC)
+        except Exception as e:
+            print(f"Error during BICUBIC resize: {e}, trying with default")
+            # En basit yöntem
+            pil_resized = pil_img.resize((new_width, new_height))
+    
+    # PIL Image'i tekrar NumPy array'e dönüştür
+    zoomed = np.array(pil_resized)
+    
+    print(f"Zoom operation completed. Result shape: {zoomed.shape}")
     return zoomed
 
 def convert_color_space(img, conversion_type):
@@ -652,8 +677,32 @@ def process_image(img_data, operation, params=None):
                 width, height = processed.shape[1]//2, processed.shape[0]//2
             processed = crop_image(processed, x, y, width, height)
         elif op == "zoom":
-            factor = float(current_params.get("factor", 1.5)) if current_params else 1.5
-            processed = zoom_image(processed, factor)
+            try:
+                # Parametreleri göster
+                print(f"Zoom processing with params: {current_params}")
+                
+                # Factor parametresini güvenli bir şekilde al
+                if current_params and "factor" in current_params:
+                    raw_factor = current_params["factor"]
+                    try:
+                        factor = float(raw_factor)
+                        # Güvenli bir aralıkta olduğundan emin ol
+                        factor = max(0.1, min(5.0, factor))
+                    except (ValueError, TypeError):
+                        print(f"Invalid factor value: {raw_factor}, using default")
+                        factor = 1.5
+                else:
+                    factor = 1.5
+                
+                print(f"Applying zoom with factor: {factor}")
+                processed = zoom_image(processed, factor)
+                print(f"Zoom operation result shape: {processed.shape}")
+            except Exception as e:
+                print(f"Error during zoom operation: {e}")
+                import traceback
+                traceback.print_exc()
+                # Hata durumunda orijinal resmi değiştirme
+                print("Returning original image due to zoom error")
         elif op == "color_space":
             conv_type = current_params.get("type", "rgb_to_grayscale") if current_params else "rgb_to_grayscale"
             processed = convert_color_space(processed, conv_type)

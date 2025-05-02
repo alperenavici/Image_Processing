@@ -25,6 +25,16 @@ interface SelectedOp {
   params: Params;
 }
 
+// Define interface for history entry
+interface HistoryEntry {
+  timestamp: string;
+  operation: string | string[];
+  processing_time?: number;
+  filename?: string;
+  success: boolean;
+  error?: string;
+}
+
 const App: React.FC = () => {
   // State for images
   const [imageData, setImageData] = useState<ImageData | null>(null);
@@ -42,6 +52,10 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [processStatus, setProcessStatus] = useState<{ type: string; message: string } | null>(null);
+
+  // State for operation history
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [showHistory, setShowHistory] = useState<boolean>(true);
 
   // Refs for file inputs
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -69,6 +83,11 @@ const App: React.FC = () => {
       }
 
       const data = await response.json();
+
+      // Update history if available
+      if (data.history) {
+        setHistory(data.history);
+      }
 
       if (isSecondImage) {
         setSecondImage(data.base64);
@@ -150,6 +169,9 @@ const App: React.FC = () => {
         params: requestData.params
       });
 
+      // JSON.stringify data to show what's being sent
+      console.log("JSON being sent:", JSON.stringify(requestData));
+
       const response = await fetch(`${API_URL}/process`, {
         method: 'POST',
         headers: {
@@ -170,6 +192,11 @@ const App: React.FC = () => {
         processed: `data:image/jpeg;base64,${data.processed_image}`,
         histogram: data.histogram
       }));
+
+      // Update history if available
+      if (data.history) {
+        setHistory(data.history);
+      }
 
       setProcessStatus({ type: 'success', message: 'Görüntü başarıyla işlendi!' });
     } catch (err) {
@@ -238,10 +265,15 @@ const App: React.FC = () => {
 
   // Function to handle parameter change in single operation mode
   const handleParamChange = (paramName: string, value: any) => {
-    setParams(prev => ({
-      ...prev,
-      [paramName]: value
-    }));
+    console.log(`Parameter changed: ${paramName} = ${value}, type: ${typeof value}`);
+    setParams(prev => {
+      const newParams = {
+        ...prev,
+        [paramName]: value
+      };
+      console.log("New params:", newParams);
+      return newParams;
+    });
   };
 
   // Function to handle parameter change in multi operation mode
@@ -533,6 +565,61 @@ const App: React.FC = () => {
     }
   };
 
+  // Function to toggle history panel
+  const toggleHistory = () => {
+    setShowHistory(!showHistory);
+  };
+
+  // Function to format operation names for display
+  const formatOperation = (op: string | string[]): string => {
+    if (typeof op === 'string') {
+      return Operations[op]?.name || op;
+    } else if (Array.isArray(op)) {
+      if (op.length === 0) return 'No operation';
+      if (op.length === 1) return Operations[op[0]]?.name || op[0];
+      return `${op.length} operations`;
+    }
+    return 'Unknown operation';
+  };
+
+  // History component
+  const HistoryPanel = () => {
+    if (!showHistory || history.length === 0) return null;
+
+    return (
+      <div className="history-panel">
+        <div className="history-header">
+          <h3>İşlem Geçmişi</h3>
+          <button className="btn-toggle" onClick={toggleHistory}>
+            {showHistory ? 'Gizle' : 'Göster'}
+          </button>
+        </div>
+        <div className="history-content">
+          <table className="history-table">
+            <thead>
+              <tr>
+                <th>Zaman</th>
+                <th>İşlem</th>
+                <th>Süre</th>
+                <th>Durum</th>
+              </tr>
+            </thead>
+            <tbody>
+              {history.slice().reverse().map((entry, index) => (
+                <tr key={index} className={entry.success ? 'success' : 'error'}>
+                  <td>{entry.timestamp}</td>
+                  <td>{formatOperation(entry.operation)}</td>
+                  <td>{entry.processing_time ? `${entry.processing_time}s` : '-'}</td>
+                  <td>{entry.success ? '✓' : '✗'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
   // Loading componentini iyileştirelim
   // Loading gösterirken görünecek bileşen:
   const Loading = () => (
@@ -671,6 +758,9 @@ const App: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* History Panel */}
+        <HistoryPanel />
       </main>
 
       {loading && <Loading />}
