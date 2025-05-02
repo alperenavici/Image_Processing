@@ -25,7 +25,7 @@ export const Operations: { [key: string]: OperationConfig } = {
     name: 'Gri Dönüşüm',
     description: 'Convert image to grayscale'
   },
-  
+
   binary: {
     name: 'Binary Dönüşüm',
     description: 'Convert image to binary (black and white)',
@@ -44,7 +44,7 @@ export const Operations: { [key: string]: OperationConfig } = {
       threshold: 127
     }
   },
-  
+
   rotate: {
     name: 'Görüntü Döndürme',
     description: 'Rotate the image by a specific angle',
@@ -63,7 +63,7 @@ export const Operations: { [key: string]: OperationConfig } = {
       angle: 90
     }
   },
-  
+
   crop: {
     name: 'Görüntü Kırpma',
     description: 'Crop the image to a specific region',
@@ -100,7 +100,7 @@ export const Operations: { [key: string]: OperationConfig } = {
       height: 100
     }
   },
-  
+
   zoom: {
     name: 'Görüntü Yaklaştırma/Uzaklaştırma',
     description: 'Zoom in or out of the image',
@@ -119,7 +119,7 @@ export const Operations: { [key: string]: OperationConfig } = {
       factor: 1.5
     }
   },
-  
+
   color_space: {
     name: 'Renk Uzayı Dönüşümleri',
     description: 'Convert between different color spaces',
@@ -140,24 +140,24 @@ export const Operations: { [key: string]: OperationConfig } = {
       type: 'rgb_to_grayscale'
     }
   },
-  
+
   histogram: {
     name: 'Histogram Germe/Genişletme',
     description: 'Apply histogram stretching to enhance contrast'
   },
-  
+
   add_images: {
     name: 'İki Resim Ekleme',
     description: 'Add two images together (pixel-wise addition)',
     requiresSecondImage: true
   },
-  
+
   divide_images: {
     name: 'İki Resim Bölme',
     description: 'Divide first image by second image (pixel-wise division)',
     requiresSecondImage: true
   },
-  
+
   contrast: {
     name: 'Kontrast Artırma',
     description: 'Enhance contrast by scaling around the mean',
@@ -176,7 +176,7 @@ export const Operations: { [key: string]: OperationConfig } = {
       factor: 1.5
     }
   },
-  
+
   convolution_mean: {
     name: 'Konvolüsyon İşlemi (Mean)',
     description: 'Apply mean convolution filter',
@@ -197,7 +197,7 @@ export const Operations: { [key: string]: OperationConfig } = {
       size: 3
     }
   },
-  
+
   threshold: {
     name: 'Eşikleme İşlemi (Tek Eşikleme)',
     description: 'Apply thresholding to create a binary image',
@@ -216,12 +216,12 @@ export const Operations: { [key: string]: OperationConfig } = {
       threshold: 127
     }
   },
-  
+
   edge_prewitt: {
     name: 'Kenar Bulma (Prewitt)',
     description: 'Apply Prewitt edge detection'
   },
-  
+
   salt_pepper: {
     name: 'Gürültü Ekleme (Salt & Pepper)',
     description: 'Add salt and pepper noise to image',
@@ -240,7 +240,7 @@ export const Operations: { [key: string]: OperationConfig } = {
       amount: 0.05
     }
   },
-  
+
   filter_mean: {
     name: 'Gürültü Temizleme (Mean)',
     description: 'Apply mean filter to remove noise',
@@ -261,7 +261,7 @@ export const Operations: { [key: string]: OperationConfig } = {
       size: 3
     }
   },
-  
+
   filter_median: {
     name: 'Gürültü Temizleme (Median)',
     description: 'Apply median filter to remove noise',
@@ -282,7 +282,7 @@ export const Operations: { [key: string]: OperationConfig } = {
       size: 3
     }
   },
-  
+
   unsharp: {
     name: 'Görüntüye Filtre Uygulanması (Unsharp)',
     description: 'Apply unsharp mask filter to sharpen the image',
@@ -301,20 +301,20 @@ export const Operations: { [key: string]: OperationConfig } = {
       strength: 1.0
     }
   },
-  
+
   morphology_erosion: {
     name: 'Morfolojik İşlem (Aşınma)',
-    description: 'Apply morphological erosion',
+    description: 'Beyaz bölgeleri aşındırır, daraltır. Küçük beyaz noktaları kaldırır.',
     params: [
       {
         name: 'kernel_size',
-        label: 'Kernel Size',
+        label: 'Aşındırma Büyüklüğü',
         type: 'select',
         defaultValue: 3,
         options: [
-          { label: '3x3', value: 3 },
-          { label: '5x5', value: 5 },
-          { label: '7x7', value: 7 }
+          { label: 'Az (3x3)', value: 3 },
+          { label: 'Orta (5x5)', value: 5 },
+          { label: 'Çok (7x7)', value: 7 }
         ]
       }
     ],
@@ -322,20 +322,20 @@ export const Operations: { [key: string]: OperationConfig } = {
       kernel_size: 3
     }
   },
-  
+
   morphology_dilation: {
     name: 'Morfolojik İşlem (Genişleme)',
-    description: 'Apply morphological dilation',
+    description: 'Beyaz bölgeleri genişletir, büyütür. Küçük boşlukları doldurur.',
     params: [
       {
         name: 'kernel_size',
-        label: 'Kernel Size',
+        label: 'Genişleme Büyüklüğü',
         type: 'select',
         defaultValue: 3,
         options: [
-          { label: '3x3', value: 3 },
-          { label: '5x5', value: 5 },
-          { label: '7x7', value: 7 }
+          { label: 'Az (3x3)', value: 3 },
+          { label: 'Orta (5x5)', value: 5 },
+          { label: 'Çok (7x7)', value: 7 }
         ]
       }
     ],
@@ -343,20 +343,20 @@ export const Operations: { [key: string]: OperationConfig } = {
       kernel_size: 3
     }
   },
-  
+
   morphology_opening: {
     name: 'Morfolojik İşlem (Açma)',
-    description: 'Apply morphological opening (erosion followed by dilation)',
+    description: 'İlk aşındırma, sonra genişletme uygular. Küçük beyaz noktaları kaldırır.',
     params: [
       {
         name: 'kernel_size',
-        label: 'Kernel Size',
+        label: 'İşlem Büyüklüğü',
         type: 'select',
         defaultValue: 3,
         options: [
-          { label: '3x3', value: 3 },
-          { label: '5x5', value: 5 },
-          { label: '7x7', value: 7 }
+          { label: 'Az (3x3)', value: 3 },
+          { label: 'Orta (5x5)', value: 5 },
+          { label: 'Çok (7x7)', value: 7 }
         ]
       }
     ],
@@ -364,20 +364,20 @@ export const Operations: { [key: string]: OperationConfig } = {
       kernel_size: 3
     }
   },
-  
+
   morphology_closing: {
     name: 'Morfolojik İşlem (Kapama)',
-    description: 'Apply morphological closing (dilation followed by erosion)',
+    description: 'İlk genişletme, sonra aşındırma uygular. Küçük siyah delikleri kapatır.',
     params: [
       {
         name: 'kernel_size',
-        label: 'Kernel Size',
+        label: 'İşlem Büyüklüğü',
         type: 'select',
         defaultValue: 3,
         options: [
-          { label: '3x3', value: 3 },
-          { label: '5x5', value: 5 },
-          { label: '7x7', value: 7 }
+          { label: 'Az (3x3)', value: 3 },
+          { label: 'Orta (5x5)', value: 5 },
+          { label: 'Çok (7x7)', value: 7 }
         ]
       }
     ],

@@ -278,6 +278,14 @@ def add_images(img1, img2):
     """Add two images together with pixel-wise addition"""
     # Ensure both images have the same shape
     if img1.shape != img2.shape:
+        # Ensure both images have the same number of channels
+        if len(img1.shape) != len(img2.shape):
+            # Convert grayscale to RGB if needed
+            if len(img1.shape) == 2:
+                img1 = np.stack([img1] * 3, axis=-1)
+            elif len(img2.shape) == 2:
+                img2 = np.stack([img2] * 3, axis=-1)
+                
         # Resize the smaller image to match the larger one
         if img1.size < img2.size:
             img1 = resize_image(img1, img2.shape[1], img2.shape[0])
@@ -292,6 +300,14 @@ def divide_images(img1, img2):
     """Divide img1 by img2 (pixel-wise division)"""
     # Ensure both images have the same shape
     if img1.shape != img2.shape:
+        # Ensure both images have the same number of channels
+        if len(img1.shape) != len(img2.shape):
+            # Convert grayscale to RGB if needed
+            if len(img1.shape) == 2:
+                img1 = np.stack([img1] * 3, axis=-1)
+            elif len(img2.shape) == 2:
+                img2 = np.stack([img2] * 3, axis=-1)
+                
         # Resize the smaller image to match the larger one
         if img1.size < img2.size:
             img1 = resize_image(img1, img2.shape[1], img2.shape[0])
@@ -369,8 +385,19 @@ def thresholding(img, threshold=127):
         # Convert to grayscale first
         img = to_grayscale(img)
     
+    # Print some statistics to help with debugging
+    print(f"Thresholding: Image shape: {img.shape}, min: {img.min()}, max: {img.max()}, mean: {img.mean():.1f}")
+    print(f"Using threshold: {threshold}")
+    
     # Apply threshold
     binary = np.where(img > threshold, 255, 0).astype(np.uint8)
+    
+    # Count white and black pixels for debugging
+    white_pixels = np.sum(binary == 255)
+    black_pixels = np.sum(binary == 0)
+    total_pixels = white_pixels + black_pixels
+    
+    print(f"Binary result: White pixels: {white_pixels} ({white_pixels/total_pixels*100:.1f}%), Black pixels: {black_pixels} ({black_pixels/total_pixels*100:.1f}%)")
     
     return binary
 
@@ -461,11 +488,26 @@ def morphology_erosion(img, kernel_size=3):
     # Create a kernel
     kernel = np.ones((kernel_size, kernel_size), dtype=np.uint8)
     
+    # Print debug info
+    print(f"Erosion: Input shape: {binary.shape}, kernel size: {kernel_size}")
+    print(f"Input min: {binary.min()}, max: {binary.max()}")
+    
     # Apply binary erosion using scipy
-    eroded = ndimage.binary_erosion(binary > 0, structure=kernel)
+    # Default iterations: base on kernel size for better visual effect
+    iterations = 1
+    if kernel_size >= 5:
+        iterations = 2
+    if kernel_size >= 7:
+        iterations = 3
+        
+    # Use threshold at 128 since binary image has values 0 and 255
+    eroded = ndimage.binary_erosion(binary > 128, structure=kernel, iterations=iterations)
     
     # Convert boolean result back to uint8
     output = np.where(eroded, 255, 0).astype(np.uint8)
+    
+    print(f"Output min: {output.min()}, max: {output.max()}, unique values: {np.unique(output)}")
+    print(f"Effect applied: Shrinking/eroding white regions")
     
     return output
 
@@ -481,11 +523,26 @@ def morphology_dilation(img, kernel_size=3):
     # Create a kernel
     kernel = np.ones((kernel_size, kernel_size), dtype=np.uint8)
     
+    # Print debug info
+    print(f"Dilation: Input shape: {binary.shape}, kernel size: {kernel_size}")
+    print(f"Input min: {binary.min()}, max: {binary.max()}")
+    
     # Apply binary dilation using scipy
-    dilated = ndimage.binary_dilation(binary > 0, structure=kernel)
+    # Default iterations: base on kernel size for better visual effect
+    iterations = 1
+    if kernel_size >= 5:
+        iterations = 2
+    if kernel_size >= 7:
+        iterations = 3
+        
+    # Use threshold at 128 since binary image has values 0 and 255
+    dilated = ndimage.binary_dilation(binary > 128, structure=kernel, iterations=iterations)
     
     # Convert boolean result back to uint8
     output = np.where(dilated, 255, 0).astype(np.uint8)
+    
+    print(f"Output min: {output.min()}, max: {output.max()}, unique values: {np.unique(output)}")
+    print(f"Effect applied: Expanding/growing white regions")
     
     return output
 
@@ -501,11 +558,24 @@ def morphology_opening(img, kernel_size=3):
     # Create a kernel
     kernel = np.ones((kernel_size, kernel_size), dtype=np.uint8)
     
+    # Print debug info
+    print(f"Opening: Input shape: {binary.shape}, kernel size: {kernel_size}")
+    
     # Apply binary opening using scipy
-    opened = ndimage.binary_opening(binary > 0, structure=kernel)
+    # Default iterations: base on kernel size for better visual effect
+    iterations = 1
+    if kernel_size >= 5:
+        iterations = 2
+    if kernel_size >= 7:
+        iterations = 3
+        
+    # Use threshold at 128 since binary image has values 0 and 255
+    opened = ndimage.binary_opening(binary > 128, structure=kernel, iterations=iterations)
     
     # Convert boolean result back to uint8
     output = np.where(opened, 255, 0).astype(np.uint8)
+    
+    print(f"Opening applied: Erode followed by dilate - removes small white spots and thin connections")
     
     return output
 
@@ -521,11 +591,24 @@ def morphology_closing(img, kernel_size=3):
     # Create a kernel
     kernel = np.ones((kernel_size, kernel_size), dtype=np.uint8)
     
+    # Print debug info
+    print(f"Closing: Input shape: {binary.shape}, kernel size: {kernel_size}")
+    
     # Apply binary closing using scipy
-    closed = ndimage.binary_closing(binary > 0, structure=kernel)
+    # Default iterations: base on kernel size for better visual effect
+    iterations = 1
+    if kernel_size >= 5:
+        iterations = 2
+    if kernel_size >= 7:
+        iterations = 3
+        
+    # Use threshold at 128 since binary image has values 0 and 255
+    closed = ndimage.binary_closing(binary > 128, structure=kernel, iterations=iterations)
     
     # Convert boolean result back to uint8
     output = np.where(closed, 255, 0).astype(np.uint8)
+    
+    print(f"Closing applied: Dilate followed by erode - fills small black holes and connects nearby white regions")
     
     return output
 

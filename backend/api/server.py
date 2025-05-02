@@ -44,7 +44,12 @@ def process():
                 
         # If we have a second image for operations that need two images
         if 'image2' in data:
+            # Clean up the base64 data to remove the data URL prefix if present
             image2_data = data['image2'].split(',')[1] if ',' in data['image2'] else data['image2']
+            
+            # Debug information
+            print(f"Image2 present, operation: {operation}")
+            
             if isinstance(operation, list):
                 # Her işlem için ikinci görüntüyü ekle
                 for i in range(len(operation)):
@@ -52,9 +57,19 @@ def process():
                         params[i] = {}
                     params[i]['img2_data'] = image2_data
             else:
+                # For single operation mode
                 if params is None:
                     params = {}
                 params['img2_data'] = image2_data
+        
+        # Debug info
+        print(f"Processing with operation: {operation}")
+        if isinstance(operation, list):
+            for i, op in enumerate(operation):
+                if op in ['add_images', 'divide_images']:
+                    print(f"Operation {op} has img2_data: {'img2_data' in params[i]}")
+        elif operation in ['add_images', 'divide_images']:
+            print(f"Operation {operation} has img2_data: {'img2_data' in params}")
         
         # Process the image
         result = process_image(image_data, operation, params)

@@ -614,6 +614,28 @@ footer {
   background-color: #2e7d32;
 }
 
+.btn-continue {
+  background-color: #2196f3;
+  margin-left: 10px;
+  font-size: 0.9rem;
+  padding: 8px 16px;
+}
+
+.btn-continue:hover {
+  background-color: #1565c0;
+}
+
+.btn-clear-second {
+  background-color: #f44336;
+  margin-top: 10px;
+  font-size: 0.8rem;
+  padding: 6px 12px;
+}
+
+.btn-clear-second:hover {
+  background-color: #d32f2f;
+}
+
 .btn-change {
   background-color: #ff9800;
   margin-top: 10px;
@@ -656,6 +678,12 @@ footer {
   background-color: rgba(244, 67, 54, 0.1);
   color: var(--error);
   border: 1px solid var(--error);
+}
+
+.status-message.info {
+  background-color: rgba(33, 150, 243, 0.1);
+  color: #2196f3;
+  border: 1px solid #2196f3;
 }
 
 /* Responsive */

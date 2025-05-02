@@ -127,6 +127,7 @@ const App: React.FC = () => {
 
         if (needsSecondImage && secondImage) {
           requestData.image2 = secondImage;
+          console.log("Adding second image to multi-operation request");
         }
       } else {
         // Single operation mode
@@ -137,10 +138,17 @@ const App: React.FC = () => {
         };
 
         // Add second image if needed
-        if (Operations[selectedOperation!]?.requiresSecondImage && secondImage) {
+        if (selectedOperation && Operations[selectedOperation]?.requiresSecondImage && secondImage) {
           requestData.image2 = secondImage;
+          console.log(`Adding second image for operation: ${selectedOperation}`);
         }
       }
+
+      console.log("Request data:", {
+        operation: requestData.operation,
+        hasImage2: !!requestData.image2,
+        params: requestData.params
+      });
 
       const response = await fetch(`${API_URL}/process`, {
         method: 'POST',
@@ -174,6 +182,9 @@ const App: React.FC = () => {
 
   // Function to handle operation selection
   const handleOperationSelect = (operation: string) => {
+    console.log(`Selected operation: ${operation}`);
+    console.log(`Requires second image: ${Operations[operation]?.requiresSecondImage}`);
+
     if (multiMode) {
       // Don't allow duplicate operations in multi-mode
       if (selectedOperations.some(op => op.operation === operation)) {
@@ -187,6 +198,19 @@ const App: React.FC = () => {
       };
 
       setSelectedOperations([...selectedOperations, newOperation]);
+
+      // Check if any operation requires second image
+      const needsSecondImage = [...selectedOperations, newOperation].some(
+        op => Operations[op.operation]?.requiresSecondImage
+      );
+      console.log(`Multi-mode needs second image: ${needsSecondImage}`);
+
+      if (needsSecondImage) {
+        setProcessStatus({
+          type: 'info',
+          message: 'Bu işlem için lütfen ikinci bir görüntü ekleyin'
+        });
+      }
     } else {
       // Single operation mode
       setSelectedOperation(operation);
@@ -198,8 +222,15 @@ const App: React.FC = () => {
         setParams({});
       }
 
-      // If operation doesn't require second image, reset second image
-      if (!Operations[operation]?.requiresSecondImage) {
+      // If operation requires second image, show a message
+      if (Operations[operation]?.requiresSecondImage) {
+        console.log(`Operation ${operation} requires a second image`);
+        setProcessStatus({
+          type: 'info',
+          message: 'Bu işlem için lütfen ikinci bir görüntü ekleyin'
+        });
+      } else {
+        // If operation doesn't require second image, reset second image
         setSecondImage(null);
       }
     }
@@ -263,7 +294,16 @@ const App: React.FC = () => {
 
   // Function to render parameter inputs based on selected operation
   const renderParamInputs = () => {
+    console.log("Rendering param inputs");
+    console.log("multiMode:", multiMode);
+    console.log("selectedOperation:", selectedOperation);
+    console.log("selectedOperations:", selectedOperations);
+
     if (multiMode) {
+      // Check if any operation needs second image
+      const needsSecondImage = selectedOperations.some(op => Operations[op.operation]?.requiresSecondImage);
+      console.log("Multi mode needs second image:", needsSecondImage);
+
       // Render multiple operations with parameters
       return (
         <div className="multi-operations-container">
@@ -287,7 +327,7 @@ const App: React.FC = () => {
 
                   {Operations[op.operation]?.params && (
                     <div className="operation-params">
-                      {Operations[op.operation].params.map(param => (
+                      {Operations[op.operation]?.params?.map(param => (
                         <div className="param-group" key={param.name}>
                           <label htmlFor={`${op.operation}-${param.name}-${index}`}>
                             {param.label}
@@ -348,12 +388,23 @@ const App: React.FC = () => {
           )}
 
           {/* Second image section for multi-operations if needed */}
-          {selectedOperations.some(op => Operations[op.operation]?.requiresSecondImage) && (
+          {needsSecondImage && (
             <div className="second-image-upload">
               <h3>İkinci Görüntü</h3>
               <div className="upload-area" onClick={() => triggerFileInput(true)}>
                 {secondImage ? (
-                  <img src={secondImage} alt="Second" className="image" style={{ maxHeight: '150px' }} />
+                  <>
+                    <img src={secondImage} alt="Second" className="image" style={{ maxHeight: '150px' }} />
+                    <button
+                      className="btn btn-clear-second"
+                      onClick={(e) => {
+                        e.stopPropagation(); // Prevent triggering file input
+                        setSecondImage(null);
+                      }}
+                    >
+                      İkinci Görüntüyü Kaldır
+                    </button>
+                  </>
                 ) : (
                   <>
                     <p>İkinci görüntüyü yüklemek için tıklayın</p>
@@ -361,20 +412,30 @@ const App: React.FC = () => {
                   </>
                 )}
               </div>
+              <input
+                type="file"
+                accept="image/*"
+                ref={secondFileInputRef}
+                onChange={(e) => handleFileUpload(e, true)}
+                style={{ display: 'none' }}
+              />
             </div>
           )}
         </div>
       );
     } else {
       // Single operation mode
-      if (!selectedOperation || !Operations[selectedOperation]?.params) {
+      if (!selectedOperation) {
         return null;
       }
+
+      console.log("Single mode, operation:", selectedOperation);
+      console.log("Requires second image:", Operations[selectedOperation]?.requiresSecondImage);
 
       return (
         <div className="params-container">
           <h3>Parametreler</h3>
-          {Operations[selectedOperation].params.map(param => (
+          {Operations[selectedOperation]?.params?.map(param => (
             <div className="param-group" key={param.name}>
               <label htmlFor={param.name}>{param.label}</label>
               {param.type === 'range' ? (
@@ -423,7 +484,18 @@ const App: React.FC = () => {
               <h3>İkinci Görüntü</h3>
               <div className="upload-area" onClick={() => triggerFileInput(true)}>
                 {secondImage ? (
-                  <img src={secondImage} alt="Second" className="image" style={{ maxHeight: '150px' }} />
+                  <>
+                    <img src={secondImage} alt="Second" className="image" style={{ maxHeight: '150px' }} />
+                    <button
+                      className="btn btn-clear-second"
+                      onClick={(e) => {
+                        e.stopPropagation(); // Prevent triggering file input
+                        setSecondImage(null);
+                      }}
+                    >
+                      İkinci Görüntüyü Kaldır
+                    </button>
+                  </>
                 ) : (
                   <>
                     <p>İkinci görüntüyü yüklemek için tıklayın</p>
@@ -442,6 +514,22 @@ const App: React.FC = () => {
           )}
         </div>
       );
+    }
+  };
+
+  // Function to continue processing from the processed image
+  const continueFromProcessed = () => {
+    if (imageData?.processed) {
+      setImageData({
+        original: imageData.processed,
+        processed: undefined,
+        histogram: undefined
+      });
+
+      // Reset operations after continuing
+      setSelectedOperation(null);
+      setSelectedOperations([]);
+      setProcessStatus(null);
     }
   };
 
@@ -497,6 +585,12 @@ const App: React.FC = () => {
                       >
                         İndir
                       </a>
+                      <button
+                        className="btn btn-continue"
+                        onClick={continueFromProcessed}
+                      >
+                        Bu Görüntüden Devam Et
+                      </button>
                     </div>
                   </div>
                 )}
