@@ -2,30 +2,25 @@ import React, { useState, useRef } from 'react';
 import { Histogram } from './Histogram';
 import { Operations, OperationConfig } from './Operations';
 
-// Define API base URL
 const API_URL = process.env.NODE_ENV === 'production'
-  ? '/api'  // Production (Vercel) - relatif yol 
-  : 'http://localhost:3000/api';  // Lokal geliştirme
+  ? '/api'  
+  : 'http://localhost:3000/api';  
 
-// Define interface for the image data
 interface ImageData {
   original: string;
   processed?: string;
   histogram?: number[];
 }
 
-// Define interface for the parameters
 interface Params {
   [key: string]: any;
 }
 
-// Define interface for selected operations
 interface SelectedOp {
   operation: string;
   params: Params;
 }
 
-// Define interface for history entry
 interface HistoryEntry {
   timestamp: string;
   operation: string | string[];
@@ -36,32 +31,25 @@ interface HistoryEntry {
 }
 
 const App: React.FC = () => {
-  // State for images
   const [imageData, setImageData] = useState<ImageData | null>(null);
   const [secondImage, setSecondImage] = useState<string | null>(null);
 
-  // State for operations
   const [selectedOperation, setSelectedOperation] = useState<string | null>(null);
   const [params, setParams] = useState<Params>({});
 
-  // State for multi-operations
   const [multiMode, setMultiMode] = useState<boolean>(false);
   const [selectedOperations, setSelectedOperations] = useState<SelectedOp[]>([]);
 
-  // State for UI
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [processStatus, setProcessStatus] = useState<{ type: string; message: string } | null>(null);
 
-  // State for operation history
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [showHistory, setShowHistory] = useState<boolean>(true);
 
-  // Refs for file inputs
   const fileInputRef = useRef<HTMLInputElement>(null);
   const secondFileInputRef = useRef<HTMLInputElement>(null);
 
-  // Function to handle file upload
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, isSecondImage: boolean = false) => {
     try {
       if (!e.target.files || e.target.files.length === 0) return;
@@ -84,7 +72,6 @@ const App: React.FC = () => {
 
       const data = await response.json();
 
-      // Update history if available
       if (data.history) {
         setHistory(data.history);
       }
@@ -95,7 +82,6 @@ const App: React.FC = () => {
         setImageData({
           original: data.base64,
         });
-        // Reset processed image when uploading a new image
         setSelectedOperation(null);
         setSelectedOperations([]);
       }
@@ -103,12 +89,10 @@ const App: React.FC = () => {
       setError((err as Error).message || 'An error occurred during upload');
     } finally {
       setLoading(false);
-      // Reset file input
       e.target.value = '';
     }
   };
 
-  // Function to trigger file input click
   const triggerFileInput = (isSecondImage: boolean = false) => {
     if (isSecondImage) {
       secondFileInputRef.current?.click();
@@ -117,7 +101,6 @@ const App: React.FC = () => {
     }
   };
 
-  // Function to process image with single operation
   const processImage = async () => {
     if (!imageData?.original || (!selectedOperation && selectedOperations.length === 0)) return;
 
@@ -125,11 +108,9 @@ const App: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      // Prepare request data
       let requestData: any;
 
       if (multiMode) {
-        // Multiple operations mode
         const operations = selectedOperations.map(op => op.operation);
         const opParams = selectedOperations.map(op => op.params);
 
@@ -139,7 +120,6 @@ const App: React.FC = () => {
           params: opParams
         };
 
-        // Check if any operation requires second image
         const needsSecondImage = selectedOperations.some(op =>
           Operations[op.operation]?.requiresSecondImage
         );
@@ -149,14 +129,12 @@ const App: React.FC = () => {
           console.log("Adding second image to multi-operation request");
         }
       } else {
-        // Single operation mode
         requestData = {
           image: imageData.original,
           operation: selectedOperation,
           params: params
         };
 
-        // Add second image if needed
         if (selectedOperation && Operations[selectedOperation]?.requiresSecondImage && secondImage) {
           requestData.image2 = secondImage;
           console.log(`Adding second image for operation: ${selectedOperation}`);
@@ -169,7 +147,6 @@ const App: React.FC = () => {
         params: requestData.params
       });
 
-      // JSON.stringify data to show what's being sent
       console.log("JSON being sent:", JSON.stringify(requestData));
 
       const response = await fetch(`${API_URL}/process`, {
@@ -186,14 +163,12 @@ const App: React.FC = () => {
 
       const data = await response.json();
 
-      // Update image data with processed image
       setImageData(prev => ({
         ...prev!,
         processed: `data:image/jpeg;base64,${data.processed_image}`,
         histogram: data.histogram
       }));
 
-      // Update history if available
       if (data.history) {
         setHistory(data.history);
       }
@@ -207,18 +182,15 @@ const App: React.FC = () => {
     }
   };
 
-  // Function to handle operation selection
   const handleOperationSelect = (operation: string) => {
     console.log(`Selected operation: ${operation}`);
     console.log(`Requires second image: ${Operations[operation]?.requiresSecondImage}`);
 
     if (multiMode) {
-      // Don't allow duplicate operations in multi-mode
       if (selectedOperations.some(op => op.operation === operation)) {
         return;
       }
 
-      // Add to selected operations list
       const newOperation: SelectedOp = {
         operation,
         params: Operations[operation]?.defaultParams || {}
@@ -226,7 +198,6 @@ const App: React.FC = () => {
 
       setSelectedOperations([...selectedOperations, newOperation]);
 
-      // Check if any operation requires second image
       const needsSecondImage = [...selectedOperations, newOperation].some(
         op => Operations[op.operation]?.requiresSecondImage
       );
@@ -239,17 +210,14 @@ const App: React.FC = () => {
         });
       }
     } else {
-      // Single operation mode
       setSelectedOperation(operation);
 
-      // Reset params for the new operation
       if (Operations[operation]?.defaultParams) {
         setParams(Operations[operation].defaultParams);
       } else {
         setParams({});
       }
 
-      // If operation requires second image, show a message
       if (Operations[operation]?.requiresSecondImage) {
         console.log(`Operation ${operation} requires a second image`);
         setProcessStatus({
@@ -257,13 +225,11 @@ const App: React.FC = () => {
           message: 'Bu işlem için lütfen ikinci bir görüntü ekleyin'
         });
       } else {
-        // If operation doesn't require second image, reset second image
         setSecondImage(null);
       }
     }
   };
 
-  // Function to handle parameter change in single operation mode
   const handleParamChange = (paramName: string, value: any) => {
     console.log(`Parameter changed: ${paramName} = ${value}, type: ${typeof value}`);
     setParams(prev => {
@@ -276,7 +242,6 @@ const App: React.FC = () => {
     });
   };
 
-  // Function to handle parameter change in multi operation mode
   const handleMultiParamChange = (index: number, paramName: string, value: any) => {
     setSelectedOperations(prev => {
       const newOps = [...prev];
@@ -291,7 +256,6 @@ const App: React.FC = () => {
     });
   };
 
-  // Function to remove operation from multi-operation list
   const removeOperation = (index: number) => {
     setSelectedOperations(prev => {
       const newOps = [...prev];
@@ -300,14 +264,11 @@ const App: React.FC = () => {
     });
   };
 
-  // Function to toggle between single and multi operation modes
   const toggleMode = () => {
     setMultiMode(!multiMode);
 
     if (!multiMode) {
-      // Switching to multi mode
       if (selectedOperation) {
-        // Convert current selection to multi-selection
         setSelectedOperations([{
           operation: selectedOperation,
           params: params
@@ -317,14 +278,12 @@ const App: React.FC = () => {
       }
       setSelectedOperation(null);
     } else {
-      // Switching to single mode
       setSelectedOperations([]);
       setSelectedOperation(null);
       setParams({});
     }
   };
 
-  // Function to render parameter inputs based on selected operation
   const renderParamInputs = () => {
     console.log("Rendering param inputs");
     console.log("multiMode:", multiMode);
@@ -332,11 +291,9 @@ const App: React.FC = () => {
     console.log("selectedOperations:", selectedOperations);
 
     if (multiMode) {
-      // Check if any operation needs second image
       const needsSecondImage = selectedOperations.some(op => Operations[op.operation]?.requiresSecondImage);
       console.log("Multi mode needs second image:", needsSecondImage);
 
-      // Render multiple operations with parameters
       return (
         <div className="multi-operations-container">
           <h3>Seçilen İşlemler</h3>
@@ -419,7 +376,6 @@ const App: React.FC = () => {
             </ul>
           )}
 
-          {/* Second image section for multi-operations if needed */}
           {needsSecondImage && (
             <div className="second-image-upload">
               <h3>İkinci Görüntü</h3>
@@ -430,7 +386,7 @@ const App: React.FC = () => {
                     <button
                       className="btn btn-clear-second"
                       onClick={(e) => {
-                        e.stopPropagation(); // Prevent triggering file input
+                        e.stopPropagation();
                         setSecondImage(null);
                       }}
                     >
@@ -456,7 +412,6 @@ const App: React.FC = () => {
         </div>
       );
     } else {
-      // Single operation mode
       if (!selectedOperation) {
         return null;
       }
@@ -521,7 +476,7 @@ const App: React.FC = () => {
                     <button
                       className="btn btn-clear-second"
                       onClick={(e) => {
-                        e.stopPropagation(); // Prevent triggering file input
+                        e.stopPropagation();
                         setSecondImage(null);
                       }}
                     >
@@ -549,7 +504,6 @@ const App: React.FC = () => {
     }
   };
 
-  // Function to continue processing from the processed image
   const continueFromProcessed = () => {
     if (imageData?.processed) {
       setImageData({
@@ -558,19 +512,16 @@ const App: React.FC = () => {
         histogram: undefined
       });
 
-      // Reset operations after continuing
       setSelectedOperation(null);
       setSelectedOperations([]);
       setProcessStatus(null);
     }
   };
 
-  // Function to toggle history panel
   const toggleHistory = () => {
     setShowHistory(!showHistory);
   };
 
-  // Function to format operation names for display
   const formatOperation = (op: string | string[]): string => {
     if (typeof op === 'string') {
       return Operations[op]?.name || op;
@@ -582,7 +533,6 @@ const App: React.FC = () => {
     return 'Unknown operation';
   };
 
-  // History component
   const HistoryPanel = () => {
     if (!showHistory || history.length === 0) return null;
 
@@ -620,8 +570,6 @@ const App: React.FC = () => {
     );
   };
 
-  // Loading componentini iyileştirelim
-  // Loading gösterirken görünecek bileşen:
   const Loading = () => (
     <div className="loading">
       <div className="spinner"></div>
@@ -692,7 +640,6 @@ const App: React.FC = () => {
               style={{ display: 'none' }}
             />
 
-            {/* Display histogram if available */}
             {imageData?.histogram && (
               <div className="histogram-container">
                 <h3>Histogram</h3>
@@ -759,7 +706,6 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        {/* History Panel */}
         <HistoryPanel />
       </main>
 

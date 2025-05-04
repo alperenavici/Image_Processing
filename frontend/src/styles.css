@@ -451,7 +451,7 @@ footer {
   flex: 1;
 }
 
-/* Operation list */
+
 .operations-header {
   display: flex;
   justify-content: space-between;
@@ -514,7 +514,7 @@ footer {
   color: #666;
 }
 
-/* Multi operations container */
+
 .multi-operations-container {
   margin-top: 1rem;
 }
@@ -578,7 +578,7 @@ footer {
   padding-top: 0.5rem;
 }
 
-/* Images */
+
 .images {
   display: flex;
   flex-direction: column;
@@ -686,7 +686,7 @@ footer {
   border: 1px solid #2196f3;
 }
 
-/* Responsive */
+
 @media (max-width: 1024px) {
   .container {
     flex-direction: column;
@@ -698,7 +698,7 @@ footer {
   }
 }
 
-/* İşlem Geçmişi Paneli */
+
 .history-panel {
   margin-top: 30px;
   background-color: var(--card-bg);

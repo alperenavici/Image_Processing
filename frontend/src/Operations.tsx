@@ -1,4 +1,4 @@
-// Define interface for operation parameter
+
 export interface OperationParam {
   name: string;
   label: string;
@@ -10,7 +10,7 @@ export interface OperationParam {
   options?: { label: string; value: string | number }[];
 }
 
-// Define interface for operation configuration
+
 export interface OperationConfig {
   name: string;
   description: string;
@@ -19,7 +19,7 @@ export interface OperationConfig {
   defaultParams?: { [key: string]: any };
 }
 
-// Define all available operations
+
 export const Operations: { [key: string]: OperationConfig } = {
   grayscale: {
     name: 'Gri Dönüşüm',

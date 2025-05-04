@@ -14,18 +14,18 @@ export const Histogram: React.FC<HistogramProps> = ({ data }) => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
-    // Clear canvas
+  
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    // Find the maximum value in the histogram data
+    
     const maxValue = Math.max(...data);
     
-    // Set histogram display properties
+   
     const barWidth = Math.max(1, Math.floor(canvas.width / data.length));
     const barSpacing = 0;
     const scaleFactor = maxValue > 0 ? canvas.height / maxValue : 0;
     
-    // Draw the histogram
+    
     ctx.fillStyle = '#3498db';
     
     for (let i = 0; i < data.length; i++) {
@@ -36,7 +36,7 @@ export const Histogram: React.FC<HistogramProps> = ({ data }) => {
       ctx.fillRect(x, y, barWidth, barHeight);
     }
     
-    // Draw the x-axis
+    
     ctx.strokeStyle = '#7f8c8d';
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -44,7 +44,7 @@ export const Histogram: React.FC<HistogramProps> = ({ data }) => {
     ctx.lineTo(canvas.width, canvas.height - 1);
     ctx.stroke();
     
-    // Add labels
+   
     ctx.fillStyle = '#2c3e50';
     ctx.font = '10px Arial';
     ctx.fillText('0', 0, canvas.height - 5);
