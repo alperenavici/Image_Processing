@@ -1,18 +1,12 @@
 import numpy as np
 import base64
 from io import BytesIO
-import json
 import PIL.Image
-from scipy import ndimage
 
 def read_image_from_base64(base64_string):
     """Decode a base64 image into a numpy array"""
    
     img_data = base64.b64decode(base64_string)
-    
-    
-    import PIL.Image
-    
    
     img = PIL.Image.open(BytesIO(img_data))
     
@@ -22,7 +16,6 @@ def read_image_from_base64(base64_string):
 
 def image_to_base64(img):
     """Convert numpy array image to base64 string"""
-    from io import BytesIO
     
     if len(img.shape) == 2:
         temp_img = PIL.Image.fromarray(img.astype(np.uint8), 'L')
@@ -125,56 +118,68 @@ def crop_image(img, x_start, y_start, width, height):
     
     return img[y_start:y_start+height, x_start:x_start+width].copy()
 
-def zoom_image(img, scale_factor):
-    """Zoom in/out image by scale factor using vectorized operations"""
-    print(f"Zoom operation called with scale_factor: {scale_factor}, type: {type(scale_factor)}")
+def cubic_interpolate(p0, p1, p2, p3, x):
+    """Cubic interpolation between four points"""
+    a = -0.5 * p0 + 1.5 * p1 - 1.5 * p2 + 0.5 * p3
+    b = p0 - 2.5 * p1 + 2 * p2 - 0.5 * p3
+    c = -0.5 * p0 + 0.5 * p2
+    d = p1
     
+    return a * x*3 + b * x*2 + c * x + d
+
+def zoom_image(img, scale_factor):
+    """Zoom in/out image by scale factor using custom bicubic interpolation"""
     if scale_factor <= 0:
-        print("Invalid scale factor (≤ 0), returning original image")
         return img
         
     height, width = img.shape[0], img.shape[1]
     channels = img.shape[2] if len(img.shape) > 2 else 1
     
-
     new_height = int(height * scale_factor)
     new_width = int(width * scale_factor)
     
-    print(f"Original image shape: {img.shape}, New dimensions: {new_width}x{new_height}")
-    
     if channels == 1:
-        pil_img = PIL.Image.fromarray(img)
+        zoomed = np.zeros((new_height, new_width), dtype=np.uint8)
     else:
-        pil_img = PIL.Image.fromarray(img)
+        zoomed = np.zeros((new_height, new_width, channels), dtype=np.uint8)
     
-   
-    try:
-      
-        resampling_method = PIL.Image.Resampling.LANCZOS
-    except AttributeError:
-        
-        resampling_method = PIL.Image.LANCZOS
+    x_scale = width / new_width
+    y_scale = height / new_height
     
-    
-    try:
-        pil_resized = pil_img.resize((new_width, new_height), resampling_method)
-    except Exception as e:
-        print(f"Error during PIL resize: {e}, trying with BICUBIC")
-        
-        try:
-            if hasattr(PIL.Image, 'Resampling'):
-                pil_resized = pil_img.resize((new_width, new_height), PIL.Image.Resampling.BICUBIC)
+    for y in range(new_height):
+        for x in range(new_width):
+            src_x = x * x_scale
+            src_y = y * y_scale
+            
+            x0 = max(0, int(src_x) - 1)
+            x1 = max(0, int(src_x))
+            x2 = min(width - 1, int(src_x) + 1)
+            x3 = min(width - 1, int(src_x) + 2)
+            
+            y0 = max(0, int(src_y) - 1)
+            y1 = max(0, int(src_y))
+            y2 = min(height - 1, int(src_y) + 1)
+            y3 = min(height - 1, int(src_y) + 2)
+            
+            dx = src_x - x1
+            dy = src_y - y1
+            
+            if channels == 1:
+                p0 = cubic_interpolate(img[y0, x0], img[y0, x1], img[y0, x2], img[y0, x3], dx)
+                p1 = cubic_interpolate(img[y1, x0], img[y1, x1], img[y1, x2], img[y1, x3], dx)
+                p2 = cubic_interpolate(img[y2, x0], img[y2, x1], img[y2, x2], img[y2, x3], dx)
+                p3 = cubic_interpolate(img[y3, x0], img[y3, x1], img[y3, x2], img[y3, x3], dx)
+                
+                zoomed[y, x] = np.clip(cubic_interpolate(p0, p1, p2, p3, dy), 0, 255).astype(np.uint8)
             else:
-                pil_resized = pil_img.resize((new_width, new_height), PIL.Image.BICUBIC)
-        except Exception as e:
-            print(f"Error during BICUBIC resize: {e}, trying with default")
-
-            pil_resized = pil_img.resize((new_width, new_height))
+                for c in range(channels):
+                    p0 = cubic_interpolate(img[y0, x0, c], img[y0, x1, c], img[y0, x2, c], img[y0, x3, c], dx)
+                    p1 = cubic_interpolate(img[y1, x0, c], img[y1, x1, c], img[y1, x2, c], img[y1, x3, c], dx)
+                    p2 = cubic_interpolate(img[y2, x0, c], img[y2, x1, c], img[y2, x2, c], img[y2, x3, c], dx)
+                    p3 = cubic_interpolate(img[y3, x0, c], img[y3, x1, c], img[y3, x2, c], img[y3, x3, c], dx)
+                    
+                    zoomed[y, x, c] = np.clip(cubic_interpolate(p0, p1, p2, p3, dy), 0, 255).astype(np.uint8)
     
-   
-    zoomed = np.array(pil_resized)
-    
-    print(f"Zoom operation completed. Result shape: {zoomed.shape}")
     return zoomed
 
 def convert_color_space(img, conversion_type):
@@ -235,11 +240,9 @@ def convert_color_space(img, conversion_type):
 
 def calculate_histogram(img):
     """Calculate histogram of image"""
-    print(f"Calculating histogram for image of shape {img.shape}")
     
     if len(img.shape) > 2:
         gray = to_grayscale(img)
-        print(f"Converted to grayscale for histogram, shape: {gray.shape}")
     else:
         gray = img
     
@@ -247,7 +250,6 @@ def calculate_histogram(img):
     for i in range(256):
         histogram[i] = np.sum(gray == i)
     
-    print(f"Histogram min count: {np.min(histogram)}, max count: {np.max(histogram)}")
     return histogram
 
 def histogram_equalization(img):
@@ -271,12 +273,8 @@ def histogram_equalization(img):
 
 def histogram_stretching(img):
     """Apply histogram stretching to enhance contrast"""
-    print(f"Histogram stretching: Input shape: {img.shape}")
-    print(f"Input min: {np.min(img)}, max: {np.max(img)}")
-    print(f"Input data type: {img.dtype}")
     
     if len(img.shape) > 2 and img.shape[2] == 4:
-        print("Converting RGBA to RGB before histogram stretching")
         img = img[:, :, :3]  
     
     if len(img.shape) > 2:
@@ -286,7 +284,6 @@ def histogram_stretching(img):
             min_val = np.min(channel)
             max_val = np.max(channel)
             
-            print(f"Channel {i} - min: {min_val}, max: {max_val}")
             
             if min_val == max_val:
                 stretched[:,:,i] = channel
@@ -294,59 +291,62 @@ def histogram_stretching(img):
                 
             stretched[:,:,i] = ((channel - min_val) / (max_val - min_val) * 255).astype(np.uint8)
         
-        print(f"Stretched output min: {np.min(stretched)}, max: {np.max(stretched)}")
         return stretched
     
     min_val = np.min(img)
     max_val = np.max(img)
     
-    print(f"Grayscale channel - min: {min_val}, max: {max_val}")
     
     if min_val == max_val:
-        print("Warning: min and max values are the same, no stretching applied")
         return img
     
     stretched = ((img.astype(np.float32) - min_val) / (max_val - min_val) * 255).astype(np.uint8)
     
-    print(f"Output min: {np.min(stretched)}, max: {np.max(stretched)}")
-    
     return stretched
 
 def add_images(img1, img2):
-    """Add two images together with pixel-wise addition"""
+    if img1.shape[-1] != img2.shape[-1]:
+        if img1.shape[-1] == 4:
+            img1 = img1[:, :, :3]
+        elif img2.shape[-1] == 4: 
+            img2 = img2[:, :, :3]
+
+    if len(img1.shape) == 2:
+        img1 = np.stack([img1] * 3, axis=-1)
+    if len(img2.shape) == 2:
+        img2 = np.stack([img2] * 3, axis=-1)
+
     if img1.shape != img2.shape:
-        if len(img1.shape) != len(img2.shape):
-            if len(img1.shape) == 2:
-                img1 = np.stack([img1] * 3, axis=-1)
-            elif len(img2.shape) == 2:
-                img2 = np.stack([img2] * 3, axis=-1)
-                
-        if img1.size < img2.size:
-            img1 = resize_image(img1, img2.shape[1], img2.shape[0])
-        else:
+        if img1.shape[0] != img2.shape[0] or img1.shape[1] != img2.shape[1]:
             img2 = resize_image(img2, img1.shape[1], img1.shape[0])
-    
+
     result = np.clip(img1.astype(np.int16) + img2.astype(np.int16), 0, 255).astype(np.uint8)
     return result
 
 def divide_images(img1, img2):
     """Divide img1 by img2 (pixel-wise division)"""
+    if img1.ndim == 3 and img1.shape[2] == 4:
+        img1 = img1[:, :, :3]
+    if img2.ndim == 3 and img2.shape[2] == 4:
+        img2 = img2[:, :, :3]
+
+    if len(img1.shape) != len(img2.shape):
+        if len(img1.shape) == 2:
+            img1 = np.stack([img1] * 3, axis=-1)
+        elif len(img2.shape) == 2:
+            img2 = np.stack([img2] * 3, axis=-1)
+
     if img1.shape != img2.shape:
-        if len(img1.shape) != len(img2.shape):
-            if len(img1.shape) == 2:
-                img1 = np.stack([img1] * 3, axis=-1)
-            elif len(img2.shape) == 2:
-                img2 = np.stack([img2] * 3, axis=-1)
-                
         if img1.size < img2.size:
             img1 = resize_image(img1, img2.shape[1], img2.shape[0])
         else:
             img2 = resize_image(img2, img1.shape[1], img1.shape[0])
-    
+
     img2_safe = np.where(img2 == 0, 1, img2)
-    
+
     result = np.clip((img1.astype(np.float32) / img2_safe.astype(np.float32) * 255), 0, 255).astype(np.uint8)
     return result
+
 
 def resize_image(img, new_width, new_height):
     """Resize image to specified dimensions using nearest neighbor interpolation"""
@@ -383,62 +383,106 @@ def enhance_contrast(img, factor=1.5):
     
     return enhanced
 
-def convolution(img, kernel):
+def convolution(img, size):
     """Apply convolution with a kernel"""
-    from scipy import ndimage
-    
-    if len(img.shape) == 3:
-        result = np.zeros_like(img)
-        for c in range(img.shape[2]):
-            result[:,:,c] = ndimage.convolve(img[:,:,c], kernel, mode='constant', cval=0.0)
-        return np.clip(result, 0, 255).astype(np.uint8)
-    else:
-        return np.clip(ndimage.convolve(img, kernel, mode='constant', cval=0.0), 0, 255).astype(np.uint8)
+    kernel = np.ones((size, size), dtype=np.float32) / (size * size)
+    k_height, k_width = kernel.shape
+    pad_h = k_height // 2
+    pad_w = k_width // 2
+
+    if img.ndim == 2: 
+        padded_image = np.pad(img, ((pad_h, pad_h), (pad_w, pad_w)), mode='constant', constant_values=0)
+        height, width = img.shape
+        output_image = np.zeros_like(img, dtype=np.float32)
+
+        for i in range(height):
+            for j in range(width):
+                region = padded_image[i:i+k_height, j:j+k_width]
+                output_image[i, j] = np.sum(region * kernel)
+
+    elif img.ndim == 3:  
+        padded_image = np.pad(img, ((pad_h, pad_h), (pad_w, pad_w), (0, 0)), mode='constant', constant_values=0)
+        height, width, channels = img.shape
+        output_image = np.zeros_like(img, dtype=np.float32)
+
+        for c in range(channels):
+            for i in range(height):
+                for j in range(width):
+                    region = padded_image[i:i+k_height, j:j+k_width, c]
+                    output_image[i, j, c] = np.sum(region * kernel)
+
+                    
+    return output_image.astype(np.uint8)
 
 def mean_filter(img, size=3):
     """Apply mean filter (box blur)"""
-    kernel = np.ones((size, size), dtype=np.float32) / (size * size)
-    return convolution(img, kernel)
+    channels = img.shape[2] if len(img.shape) == 3 else 1
+    pad = size // 2
+    filtered_image = np.zeros_like(img, dtype=np.float32)
+    
+    for c in range(channels):
+        # Her kanal için işlemi ayrı ayrı yap
+        channel = img[:, :, c] if channels > 1 else img
+        padded_image = np.pad(channel, ((pad, pad), (pad, pad)), mode='constant', constant_values=0)
+        height, width = channel.shape
+
+        for i in range(height):
+            for j in range(width):
+                region = padded_image[i:i+size, j:j+size]
+                filtered_image[i, j, c] = np.mean(region)
+
+    return np.clip(filtered_image, 0, 255).astype(np.uint8)
 
 def thresholding(img, threshold=127):
     """Apply simple thresholding to create a binary image"""
     if len(img.shape) > 2:
         img = to_grayscale(img)
     
-    print(f"Thresholding: Image shape: {img.shape}, min: {img.min()}, max: {img.max()}, mean: {img.mean():.1f}")
-    print(f"Using threshold: {threshold}")
-    
     binary = np.where(img > threshold, 255, 0).astype(np.uint8)
-    
-    white_pixels = np.sum(binary == 255)
-    black_pixels = np.sum(binary == 0)
-    total_pixels = white_pixels + black_pixels
-    
-    print(f"Binary result: White pixels: {white_pixels} ({white_pixels/total_pixels*100:.1f}%), Black pixels: {black_pixels} ({black_pixels/total_pixels*100:.1f}%)")
     
     return binary
 
+
+def apply_kernel(img, kernel):
+    """Verilen görüntüye ve kernel'e konvolüsyon uygula"""
+    height, width = img.shape
+    k_height, k_width = kernel.shape
+    pad_h = k_height // 2
+    pad_w = k_width // 2
+    
+    padded_image = np.pad(img, ((pad_h, pad_h), (pad_w, pad_w)), mode='constant', constant_values=0)
+    
+    output_image = np.zeros_like(img, dtype=np.float32)
+    
+    for i in range(height):
+        for j in range(width):
+            region = padded_image[i:i+k_height, j:j+k_width]
+            output_image[i, j] = np.sum(region * kernel) 
+    
+    return output_image
+
 def prewitt_edge_detection(img):
-    """Apply Prewitt edge detection"""
+    """Prewitt kenar tespiti yap"""
+    
     if len(img.shape) > 2:
         img = to_grayscale(img)
     
-    kernel_x = np.array([[-1, 0, 1],
-                         [-1, 0, 1],
+    kernel_x = np.array([[-1, 0, 1], 
+                         [-1, 0, 1], 
                          [-1, 0, 1]])
     
-    kernel_y = np.array([[-1, -1, -1],
-                         [0, 0, 0],
-                         [1, 1, 1]])
-    
-    edges_x = ndimage.convolve(img.astype(float), kernel_x)
-    edges_y = ndimage.convolve(img.astype(float), kernel_y)
-    
-    edges = np.sqrt(edges_x**2 + edges_y**2)
-    
-    edges = edges * (255.0 / edges.max()) if edges.max() > 0 else edges
-    
-    return edges.astype(np.uint8)
+    kernel_y = np.array([[-1, -1, -1], 
+                         [ 0,  0,  0], 
+                         [ 1,  1,  1]])
+
+    grad_x = apply_kernel(img, kernel_x)
+    grad_y = apply_kernel(img, kernel_y)
+
+    grad_magnitude = np.sqrt(grad_x**2 + grad_y**2)
+
+    grad_magnitude = np.uint8(np.clip(grad_magnitude, 0, 255))
+
+    return grad_magnitude
 
 def add_salt_pepper_noise(img, amount=0.05):
     """Add salt and pepper noise to an image"""
@@ -462,15 +506,23 @@ def add_salt_pepper_noise(img, amount=0.05):
 
 def median_filter(img, size=3):
     """Apply median filter to remove noise"""
-    from scipy import ndimage
-    
     if len(img.shape) == 3:
-        result = np.zeros_like(img)
-        for c in range(img.shape[2]):
-            result[:,:,c] = ndimage.median_filter(img[:,:,c], size=size)
-        return result
-    else:
-        return ndimage.median_filter(img, size=size)
+        img = to_grayscale(img)
+    
+    height, width = img.shape
+    pad_h = size // 2
+    pad_w = size // 2
+    
+    padded_image = np.pad(img, ((pad_h, pad_h), (pad_w, pad_w)), mode='constant', constant_values=0)
+    
+    output_image = np.zeros_like(img, dtype=np.float32)
+    
+    for i in range(height):
+        for j in range(width):
+            region = padded_image[i:i+size, j:j+size]
+            output_image[i, j] = np.median(region) 
+    
+    return output_image.astype(np.uint8)
 
 def unsharp_mask(img, strength=1.0):
     """Apply unsharp mask filter to sharpen the image"""
@@ -484,107 +536,113 @@ def unsharp_mask(img, strength=1.0):
 
 def morphology_erosion(img, kernel_size=3):
     """Apply morphological erosion"""
-    if len(img.shape) > 2:
+    if len(img.shape) == 3:
         img = to_grayscale(img)
-    
-    binary = thresholding(img)
-    
+
+    binary = np.where(img > 127, 1, 0).astype(np.uint8)
+
     kernel = np.ones((kernel_size, kernel_size), dtype=np.uint8)
-    
-    print(f"Erosion: Input shape: {binary.shape}, kernel size: {kernel_size}")
-    print(f"Input min: {binary.min()}, max: {binary.max()}")
-    
-    iterations = 1
-    if kernel_size >= 5:
-        iterations = 2
-    if kernel_size >= 7:
-        iterations = 3
-        
-    eroded = ndimage.binary_erosion(binary > 128, structure=kernel, iterations=iterations)
-    
-    output = np.where(eroded, 255, 0).astype(np.uint8)
-    
-    print(f"Output min: {output.min()}, max: {output.max()}, unique values: {np.unique(output)}")
-    print(f"Effect applied: Shrinking/eroding white regions")
-    
-    return output
+
+    height, width = binary.shape
+    pad = kernel_size // 2
+    padded_image = np.pad(binary, ((pad, pad), (pad, pad)), mode='constant', constant_values=0)
+
+    output = np.zeros_like(binary)
+
+    for i in range(height):
+        for j in range(width):
+            region = padded_image[i:i+kernel_size, j:j+kernel_size]
+            if np.all(region == kernel):
+                output[i, j] = 1
+            else:
+                output[i, j] = 0
+
+    return (output * 255).astype(np.uint8)
 
 def morphology_dilation(img, kernel_size=3):
     """Apply morphological dilation"""
-    if len(img.shape) > 2:
+    if len(img.shape) == 3:
         img = to_grayscale(img)
-    
-    binary = thresholding(img)
-    
+
+    binary = np.where(img > 127, 1, 0).astype(np.uint8)
+
     kernel = np.ones((kernel_size, kernel_size), dtype=np.uint8)
-    
-    print(f"Dilation: Input shape: {binary.shape}, kernel size: {kernel_size}")
-    print(f"Input min: {binary.min()}, max: {binary.max()}")
-    
-    iterations = 1
-    if kernel_size >= 5:
-        iterations = 2
-    if kernel_size >= 7:
-        iterations = 3
-        
-    dilated = ndimage.binary_dilation(binary > 128, structure=kernel, iterations=iterations)
-    
-    output = np.where(dilated, 255, 0).astype(np.uint8)
-    
-    print(f"Output min: {output.min()}, max: {output.max()}, unique values: {np.unique(output)}")
-    print(f"Effect applied: Expanding/growing white regions")
-    
-    return output
+
+    height, width = binary.shape
+    pad = kernel_size // 2
+    padded_image = np.pad(binary, ((pad, pad), (pad, pad)), mode='constant', constant_values=0)
+
+    output = np.zeros_like(binary)
+
+    for i in range(height):
+        for j in range(width):
+            region = padded_image[i:i+kernel_size, j:j+kernel_size]
+            if np.any(region & kernel):  
+                output[i, j] = 1
+            else:
+                output[i, j] = 0
+
+    return (output * 255).astype(np.uint8)
 
 def morphology_opening(img, kernel_size=3):
     """Apply morphological opening (erosion followed by dilation)"""
-    if len(img.shape) > 2:
+    if len(img.shape) == 3:
         img = to_grayscale(img)
-    
-    binary = thresholding(img)
-    
+
+    binary = np.where(img > 127, 1, 0).astype(np.uint8)
     kernel = np.ones((kernel_size, kernel_size), dtype=np.uint8)
-    
-    print(f"Opening: Input shape: {binary.shape}, kernel size: {kernel_size}")
-    
-    iterations = 1
-    if kernel_size >= 5:
-        iterations = 2
-    if kernel_size >= 7:
-        iterations = 3
-        
-    opened = ndimage.binary_opening(binary > 128, structure=kernel, iterations=iterations)
-    
-    output = np.where(opened, 255, 0).astype(np.uint8)
-    
-    print(f"Opening applied: Erode followed by dilate - removes small white spots and thin connections")
-    
-    return output
+    pad = kernel_size // 2
+    height, width = binary.shape
+
+    padded = np.pad(binary, ((pad, pad), (pad, pad)), mode='constant', constant_values=0)
+    eroded = np.zeros_like(binary)
+
+    for i in range(height):
+        for j in range(width):
+            region = padded[i:i+kernel_size, j:j+kernel_size]
+            if np.all(region[kernel == 1]):
+                eroded[i, j] = 1
+
+    padded_eroded = np.pad(eroded, ((pad, pad), (pad, pad)), mode='constant', constant_values=0)
+    opened = np.zeros_like(binary)
+
+    for i in range(height):
+        for j in range(width):
+            region = padded_eroded[i:i+kernel_size, j:j+kernel_size]
+            if np.any(region[kernel == 1]):
+                opened[i, j] = 1
+
+    return (opened * 255).astype(np.uint8)
 
 def morphology_closing(img, kernel_size=3):
     """Apply morphological closing (dilation followed by erosion)"""
-    if len(img.shape) > 2:
+    if len(img.shape) == 3:
         img = to_grayscale(img)
-    
-    binary = thresholding(img)
-    
+
+    binary = np.where(img > 127, 1, 0).astype(np.uint8)
     kernel = np.ones((kernel_size, kernel_size), dtype=np.uint8)
-    
-    print(f"Closing: Input shape: {binary.shape}, kernel size: {kernel_size}")
-    
-    iterations = 1
-    if kernel_size >= 5:
-        iterations = 2
-    if kernel_size >= 7:
-        iterations = 3
-        
-    closed = ndimage.binary_closing(binary > 128, structure=kernel, iterations=iterations)
-    
-    output = np.where(closed, 255, 0).astype(np.uint8)
-    
-    print(f"Closing applied: Dilate followed by erode - fills small black holes and connects nearby white regions")
-    
-    return output
+    pad = kernel_size // 2
+    height, width = binary.shape
+
+    padded = np.pad(binary, ((pad, pad), (pad, pad)), mode='constant', constant_values=0)
+    dilated = np.zeros_like(binary)
+
+    for i in range(height):
+        for j in range(width):
+            region = padded[i:i+kernel_size, j:j+kernel_size]
+            if np.any(region[kernel == 1]):
+                dilated[i, j] = 1
+
+    padded_dilated = np.pad(dilated, ((pad, pad), (pad, pad)), mode='constant', constant_values=0)
+    closed = np.zeros_like(binary)
+
+    for i in range(height):
+        for j in range(width):
+            region = padded_dilated[i:i+kernel_size, j:j+kernel_size]
+            if np.all(region[kernel == 1]):
+                closed[i, j] = 1
+
+    return (closed * 255).astype(np.uint8)
 
 def process_image(img_data, operation, params=None):
     """Process the image based on the specified operation"""
@@ -621,7 +679,6 @@ def process_image(img_data, operation, params=None):
             processed = crop_image(processed, x, y, width, height)
         elif op == "zoom":
             try:
-                print(f"Zoom processing with params: {current_params}")
                 
                 if current_params and "factor" in current_params:
                     raw_factor = current_params["factor"]
@@ -629,24 +686,18 @@ def process_image(img_data, operation, params=None):
                         factor = float(raw_factor)
                         factor = max(0.1, min(5.0, factor))
                     except (ValueError, TypeError):
-                        print(f"Invalid factor value: {raw_factor}, using default")
                         factor = 1.5
                 else:
                     factor = 1.5
                 
-                print(f"Applying zoom with factor: {factor}")
                 processed = zoom_image(processed, factor)
-                print(f"Zoom operation result shape: {processed.shape}")
             except Exception as e:
-                print(f"Error during zoom operation: {e}")
                 import traceback
                 traceback.print_exc()
-                print("Returning original image due to zoom error")
         elif op == "color_space":
             conv_type = current_params.get("type", "rgb_to_grayscale") if current_params else "rgb_to_grayscale"
             processed = convert_color_space(processed, conv_type)
         elif op == "histogram":
-            print(f"Applying histogram stretching to image of shape {processed.shape}")
             try:
                 processed = histogram_stretching(processed)
                 
@@ -656,9 +707,7 @@ def process_image(img_data, operation, params=None):
                     elif processed.shape[2] == 1:
                         processed = processed[:, :, 0]
                 
-                print(f"Histogram stretching applied successfully. Result shape: {processed.shape}")
             except Exception as e:
-                print(f"Error in histogram stretching: {e}")
                 import traceback
                 traceback.print_exc()
             if idx == len(operations) - 1:
@@ -678,7 +727,7 @@ def process_image(img_data, operation, params=None):
             processed = enhance_contrast(processed, factor)
         elif op == "convolution_mean":
             kernel_size = int(current_params.get("size", 3)) if current_params else 3
-            processed = mean_filter(processed, kernel_size)
+            processed = convolution(processed, kernel_size)
         elif op == "threshold":
             threshold = int(current_params.get("threshold", 127)) if current_params else 127
             processed = thresholding(processed, threshold)
