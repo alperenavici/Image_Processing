@@ -28,9 +28,14 @@ def image_to_base64(img):
     
     # Eğer grayscale ise ve 2 boyutlu dizi ise, RGB'ye dönüştür
     if len(img.shape) == 2:
-        temp_img = PIL.Image.fromarray(img.astype(np.uint8))
+        temp_img = PIL.Image.fromarray(img.astype(np.uint8), 'L')
+        temp_img = temp_img.convert('RGB')  # Convert to RGB for JPEG compatibility
     else:
         temp_img = PIL.Image.fromarray(img.astype(np.uint8))
+        # Check if the image has an alpha channel (RGBA) and convert to RGB
+        if img.shape[2] == 4:  # RGBA image
+            print("Converting RGBA image to RGB for JPEG compatibility")
+            temp_img = temp_img.convert('RGB')
     
     # BytesIO ile görüntüyü belleğe kaydet
     buffered = BytesIO()
@@ -239,9 +244,12 @@ def convert_color_space(img, conversion_type):
 
 def calculate_histogram(img):
     """Calculate histogram of image"""
+    print(f"Calculating histogram for image of shape {img.shape}")
+    
     if len(img.shape) > 2:
         # Convert to grayscale for histogram
         gray = to_grayscale(img)
+        print(f"Converted to grayscale for histogram, shape: {gray.shape}")
     else:
         gray = img
     
@@ -249,7 +257,8 @@ def calculate_histogram(img):
     histogram = np.zeros(256, dtype=np.int32)
     for i in range(256):
         histogram[i] = np.sum(gray == i)
-        
+    
+    print(f"Histogram min count: {np.min(histogram)}, max count: {np.max(histogram)}")
     return histogram
 
 def histogram_equalization(img):
@@ -279,23 +288,55 @@ def histogram_equalization(img):
 
 def histogram_stretching(img):
     """Apply histogram stretching to enhance contrast"""
+    # Debug prints to diagnose issue
+    print(f"Histogram stretching: Input shape: {img.shape}")
+    print(f"Input min: {np.min(img)}, max: {np.max(img)}")
+    print(f"Input data type: {img.dtype}")
+    
+    # Handle RGBA images by removing the alpha channel
+    if len(img.shape) > 2 and img.shape[2] == 4:
+        print("Converting RGBA to RGB before histogram stretching")
+        img = img[:, :, :3]  # Keep only the RGB channels
+    
     if len(img.shape) > 2:
         # For color images, process each channel
         stretched = np.zeros_like(img)
-        for i in range(3):
-            stretched[:,:,i] = histogram_stretching(img[:,:,i])
+        for i in range(min(3, img.shape[2])):  # Process up to 3 channels (RGB)
+            channel = img[:,:,i]
+            min_val = np.min(channel)
+            max_val = np.max(channel)
+            
+            # Debug the min and max values
+            print(f"Channel {i} - min: {min_val}, max: {max_val}")
+            
+            # Skip stretching if min equals max
+            if min_val == max_val:
+                stretched[:,:,i] = channel
+                continue
+                
+            # Apply linear stretching
+            stretched[:,:,i] = ((channel - min_val) / (max_val - min_val) * 255).astype(np.uint8)
+        
+        print(f"Stretched output min: {np.min(stretched)}, max: {np.max(stretched)}")
         return stretched
     
-    # Find the minimum and maximum pixel intensities
+    # For grayscale images
     min_val = np.min(img)
     max_val = np.max(img)
     
+    # Debug the min and max values
+    print(f"Grayscale channel - min: {min_val}, max: {max_val}")
+    
     # If min and max are the same, return the image as is
     if min_val == max_val:
+        print("Warning: min and max values are the same, no stretching applied")
         return img
     
     # Apply linear stretching
-    stretched = ((img - min_val) / (max_val - min_val) * 255).astype(np.uint8)
+    stretched = ((img.astype(np.float32) - min_val) / (max_val - min_val) * 255).astype(np.uint8)
+    
+    # Debug the output
+    print(f"Output min: {np.min(stretched)}, max: {np.max(stretched)}")
     
     return stretched
 
@@ -707,7 +748,24 @@ def process_image(img_data, operation, params=None):
             conv_type = current_params.get("type", "rgb_to_grayscale") if current_params else "rgb_to_grayscale"
             processed = convert_color_space(processed, conv_type)
         elif op == "histogram":
-            processed = histogram_stretching(processed)
+            print(f"Applying histogram stretching to image of shape {processed.shape}")
+            try:
+                processed = histogram_stretching(processed)
+                
+                # Ensure the output is in the correct format (RGB or grayscale)
+                if len(processed.shape) > 2:
+                    # Ensure it's only RGB (3 channels), not RGBA (4 channels)
+                    if processed.shape[2] > 3:
+                        processed = processed[:, :, :3]
+                    # If it's a single-channel image in 3D format, convert back to 2D
+                    elif processed.shape[2] == 1:
+                        processed = processed[:, :, 0]
+                
+                print(f"Histogram stretching applied successfully. Result shape: {processed.shape}")
+            except Exception as e:
+                print(f"Error in histogram stretching: {e}")
+                import traceback
+                traceback.print_exc()
             # Son işlemse histogram hesapla
             if idx == len(operations) - 1:
                 histogram = calculate_histogram(processed).tolist()

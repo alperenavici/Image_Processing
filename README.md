@@ -52,7 +52,7 @@ cd backend
 python api/server.py
 ```
 
-Bu, backend API'sini 5000 numaralı portta çalıştıracaktır.
+Bu, backend API'sini 3000 numaralı portta çalıştıracaktır.
 
 ### Frontend'i çalıştırma
 
